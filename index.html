@@ -477,9 +477,12 @@
 
       <div class="scan-tools">
         <button id="scanButton" class="button" type="button">Scanner sur mobile</button>
+        <button id="captureButton" class="button primary" type="button">Prendre une photo du code-barres</button>
         <button id="refocusButton" class="button" type="button" hidden>Relancer la mise au point</button>
         <button id="stopScanButton" class="button" type="button" hidden>Arreter le scan</button>
       </div>
+
+      <input id="captureInput" type="file" accept="image/*" capture="environment" hidden>
 
       <div id="scanPanel" class="scan-panel">
         <p id="scanHint" class="scan-hint">
@@ -535,6 +538,8 @@
     const feedSubtitle = document.getElementById("feedSubtitle");
     const comparisonSummary = document.getElementById("comparisonSummary");
     const scanButton = document.getElementById("scanButton");
+    const captureButton = document.getElementById("captureButton");
+    const captureInput = document.getElementById("captureInput");
     const refocusButton = document.getElementById("refocusButton");
     const stopScanButton = document.getElementById("stopScanButton");
     const scanPanel = document.getElementById("scanPanel");
@@ -549,6 +554,7 @@
     let imageCapture = null;
     let cameraCapabilities = {};
     let focusPointSupported = false;
+    let zxingReader = null;
 
     function setStatus(message, tone) {
       statusNode.textContent = message;
@@ -602,6 +608,10 @@
 
     function supportsNativeScan() {
       return "BarcodeDetector" in window && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function";
+    }
+
+    function canUseNativeCameraCapture() {
+      return typeof captureInput.showPicker === "function" || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     }
 
     function resetScanUi() {
@@ -796,6 +806,130 @@
       }
 
       resetScanUi();
+    }
+
+    function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        const existing = document.querySelector('script[data-src="' + src + '"]');
+        if (existing) {
+          existing.addEventListener("load", function() { resolve(); }, { once: true });
+          existing.addEventListener("error", function() { reject(new Error("Impossible de charger le module externe.")); }, { once: true });
+          if (existing.dataset.loaded === "true") {
+            resolve();
+          }
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.dataset.src = src;
+        script.addEventListener("load", function() {
+          script.dataset.loaded = "true";
+          resolve();
+        }, { once: true });
+        script.addEventListener("error", function() {
+          reject(new Error("Impossible de charger le module externe."));
+        }, { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
+    async function getZxingReader() {
+      if (zxingReader) {
+        return zxingReader;
+      }
+
+      await loadScript("https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js");
+
+      if (!window.ZXing || !window.ZXing.BrowserMultiFormatReader) {
+        throw new Error("Le module ZXing n'est pas disponible.");
+      }
+
+      zxingReader = new window.ZXing.BrowserMultiFormatReader();
+      return zxingReader;
+    }
+
+    function fileToImage(file) {
+      return new Promise(function(resolve, reject) {
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = function() {
+          URL.revokeObjectURL(imageUrl);
+          resolve(image);
+        };
+        image.onerror = function() {
+          URL.revokeObjectURL(imageUrl);
+          reject(new Error("Impossible de lire l'image capturee."));
+        };
+        image.src = imageUrl;
+      });
+    }
+
+    async function detectBarcodeFromImage(file) {
+      const image = await fileToImage(file);
+
+      if ("BarcodeDetector" in window) {
+        try {
+          const detector = new BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
+          });
+          const results = await detector.detect(image);
+          if (Array.isArray(results) && results.length > 0) {
+            return results[0].rawValue || "";
+          }
+        } catch {
+          // fallback ZXing below
+        }
+      }
+
+      const reader = await getZxingReader();
+      const result = await reader.decodeFromImageElement(image);
+      return result && result.text ? result.text : "";
+    }
+
+    async function captureBarcodePhoto() {
+      await stopScanner();
+
+      if (!isSecureContextForCamera()) {
+        setStatus("La capture photo demande une page HTTPS ou localhost.", "error");
+        return;
+      }
+
+      setStatus("Ouverture de l'application photo du telephone...", "");
+
+      if (typeof captureInput.showPicker === "function") {
+        captureInput.showPicker();
+      } else {
+        captureInput.click();
+      }
+    }
+
+    async function handleCapturedFile() {
+      const file = captureInput.files && captureInput.files[0];
+      if (!file) {
+        setStatus("Capture annulee.", "");
+        return;
+      }
+
+      setStatus("Analyse de la photo du code-barres...", "");
+
+      try {
+        const rawCode = await detectBarcodeFromImage(file);
+        const code = normalizeBarcode(rawCode);
+
+        if (!code) {
+          throw new Error("Aucun code-barres lisible sur la photo.");
+        }
+
+        barcodeInput.value = code;
+        setStatus("Code-barres detecte sur la photo: " + code, "ok");
+        lookupProduct();
+      } catch (error) {
+        setStatus("Echec de lecture du code-barres: " + error.message, "error");
+      } finally {
+        captureInput.value = "";
+      }
     }
 
     async function detectFromCamera() {
@@ -1066,6 +1200,8 @@
     searchButton.addEventListener("click", lookupProduct);
     refreshButton.addEventListener("click", loadRecentPrices);
     scanButton.addEventListener("click", startScanner);
+    captureButton.addEventListener("click", captureBarcodePhoto);
+    captureInput.addEventListener("change", handleCapturedFile);
     refocusButton.addEventListener("click", forceRefocus);
     stopScanButton.addEventListener("click", stopScanner);
     barcodeInput.addEventListener("keydown", function(event) {
@@ -1097,6 +1233,9 @@
 
     renderProduct(null);
     renderComparison([], "recent");
+    if (!canUseNativeCameraCapture()) {
+      captureButton.textContent = "Choisir ou photographier un code-barres";
+    }
     loadRecentPrices();
   </script>
 </body>

@@ -1,1287 +1,1555 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E1B24">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Carburants">
-<title>Carburants — prix par commune ou GPS</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Prices Live</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: rgba(255, 252, 246, 0.9);
+      --panel-strong: #fffdf8;
+      --text: #1e1d1b;
+      --muted: #6b665e;
+      --line: rgba(30, 29, 27, 0.1);
+      --accent: #ba3f1d;
+      --accent-dark: #8d2e14;
+      --ok: #165b33;
+      --shadow: 0 20px 60px rgba(69, 44, 28, 0.12);
+      --radius: 22px;
+    }
 
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230E1B24'/%3E%3Crect x='52' y='40' width='58' height='100' rx='8' fill='none' stroke='%23FFB627' stroke-width='9'/%3E%3Crect x='64' y='56' width='34' height='26' rx='3' fill='%23FFB627'/%3E%3Cpath d='M110 66h14a10 10 0 0 1 10 10v40a9 9 0 0 0 18 0V86' fill='none' stroke='%23FFB627' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
+    * {
+      box-sizing: border-box;
+    }
 
-<style>
-  :root{
-    --ink:#0F1C25; --panel:#16272F; --panel-2:#0C161C; --line:#24414D;
-    --text:#EAF0F2; --muted:#8398A2; --best:#43C08A; --danger:#E9795B;
-    --fuel:#FFB627;
-    --sel:#F2F5F7; --sel-ink:#12202A;
-    --btn:#F2F5F7; --btn-ink:#12202A;
-  }
-  html[data-theme="light"]{
-    --ink:#F4F6F8; --panel:#FFFFFF; --panel-2:#EDF1F4; --line:#D6DDE2;
-    --text:#16242D; --muted:#5C6E77; --best:#1F9E63; --danger:#C0442E;
-    --sel:#16242D; --sel-ink:#FFFFFF; --btn:#16242D; --btn-ink:#FFFFFF;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0}
-  body{
-    background:var(--ink); color:var(--text);
-    font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-    -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:520px;margin:0 auto;padding:18px 16px 40px}
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(186, 63, 29, 0.16), transparent 32%),
+        radial-gradient(circle at right center, rgba(85, 134, 102, 0.12), transparent 28%),
+        linear-gradient(180deg, #efe7da 0%, var(--bg) 40%, #f8f4ee 100%);
+    }
 
-  header{display:flex;align-items:center;gap:12px;margin:6px 2px 18px}
-  .pump{width:34px;height:34px;flex:0 0 auto}
-  h1{font-size:19px;font-weight:700;letter-spacing:.02em;margin:0}
-  h2{font-size:15px;font-weight:700;letter-spacing:.02em;margin:0}
-  .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
-  .theme{margin-left:auto;flex:0 0 auto;width:38px;height:38px;border-radius:10px;
-         border:1px solid var(--line);background:var(--panel-2);color:var(--text);
-         font-size:17px;cursor:pointer;line-height:1}
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
 
-  .seg{display:flex;gap:6px;background:var(--panel-2);border:1px solid var(--line);
-       border-radius:12px;padding:4px;margin-bottom:16px}
-  .seg button{flex:1;padding:11px;border:0;border-radius:9px;background:transparent;
-              color:var(--muted);font-size:14.5px;font-weight:700;cursor:pointer}
-  .seg button[aria-selected="true"]{background:var(--sel);color:var(--sel-ink)}
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 8px);
+      background: linear-gradient(135deg, rgba(255, 251, 243, 0.94), rgba(255, 247, 235, 0.88));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
 
-  .field{margin-bottom:12px}
-  .hidden{display:none}
-  label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;
-        letter-spacing:.08em;margin:0 0 6px 2px}
-  input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);
-        background:var(--panel-2);color:var(--text);font-size:16px}
-  input:focus{outline:2px solid var(--sel);outline-offset:1px;border-color:transparent}
-  input::placeholder{color:var(--muted)}
-  .cp{max-width:150px}
-  .hint{color:var(--muted);font-size:13px;margin:0 2px 10px;line-height:1.5}
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -120px -120px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(186, 63, 29, 0.15), transparent 70%);
+      pointer-events: none;
+    }
 
-  .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{padding:9px 13px;border-radius:999px;border:1px solid var(--line);
-        background:transparent;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer}
-  .chip[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);border-color:var(--sel)}
-  .chip .dot{display:inline-block;width:9px;height:9px;border-radius:50%;
-             margin-right:7px;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+    .eyebrow {
+      margin: 0 0 8px;
+      font-size: 12px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--accent-dark);
+    }
 
-  button.go{width:100%;margin-top:16px;padding:15px;border:0;border-radius:12px;cursor:pointer;
-            background:var(--btn);color:var(--btn-ink);font-size:16px;font-weight:800;letter-spacing:.02em}
-  button.go.secondary{margin-top:12px;background:transparent;color:var(--text);border:1px solid var(--line)}
-  button.go:active{transform:translateY(1px)}
-  button.go:disabled{opacity:.6}
+    h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 5vw, 4.5rem);
+      line-height: 0.96;
+      max-width: 9ch;
+    }
 
-  .assistant{margin-top:18px;padding:14px;border-radius:16px;background:linear-gradient(180deg, var(--panel), var(--panel-2));
-             border:1px solid var(--line)}
-  .assistant-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
-  .assistant-badge{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--text);
-                   border:1px solid var(--line);border-radius:999px;padding:5px 9px}
-  .voice-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:stretch}
-  .voice-btn{border:1px solid var(--line);border-radius:12px;background:var(--sel);color:var(--sel-ink);
-             font-weight:800;font-size:15px;cursor:pointer;padding:0 12px;min-height:52px}
-  .voice-btn.listening{background:#D45E43;color:#fff;border-color:#D45E43}
-  .voice-meta,.voice-state{margin:10px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.5}
-  .voice-meta.error{color:var(--danger)}
-  .voice-state b,.voice-meta b{color:var(--text)}
-  .ai-settings{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
-  .ai-settings summary{cursor:pointer;font-weight:700;color:var(--text);list-style:none}
-  .ai-settings summary::-webkit-details-marker{display:none}
-  .ai-settings .hint{margin-top:8px}
-  .ai-settings .field:last-child{margin-bottom:0}
+    .lead {
+      max-width: 62ch;
+      margin: 18px 0 0;
+      font-size: 1.02rem;
+      line-height: 1.7;
+      color: var(--muted);
+    }
 
-  .status{margin-top:22px;color:var(--muted);font-size:14.5px;text-align:center;padding:0 6px}
-  .status b{color:var(--text)}
-  .count{margin:22px 2px 10px;font-size:12px;color:var(--muted);
-         text-transform:uppercase;letter-spacing:.08em}
+    .toolbar {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: 1.2fr auto auto;
+      gap: 12px;
+      align-items: center;
+    }
 
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-        padding:14px 15px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px}
-  .card.best{box-shadow:inset 0 0 0 1.5px var(--best)}
-  .price{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-         font-variant-numeric:tabular-nums;font-weight:700;font-size:26px;line-height:1;
-         color:var(--fuel);min-width:96px;text-align:right}
-  html[data-theme="light"] .price{color:var(--text)}
-  .price small{font-size:12px;color:var(--muted);font-weight:700;margin-left:2px}
-  .info{flex:1;min-width:0}
-  .addr{font-weight:600;font-size:15px}
-  .loc{color:var(--muted);font-size:13px;margin-top:2px}
-  .badges{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px}
-  .dist{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);
-        border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-  .tag{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--best);
-       border:1px solid var(--best);border-radius:999px;padding:2px 8px}
-  .others{margin-top:8px;font-size:12.5px;color:var(--muted)}
-  .others b{color:var(--text);font-weight:600}
-  .foot{margin-top:26px;text-align:center;color:var(--muted);font-size:11.5px;line-height:1.6}
-  .summary{margin:2px 2px 12px;font-size:12.5px;color:var(--muted)}
-  .summary b{color:var(--text)}
-  .priority{display:grid;gap:10px;margin:0 0 14px}
-  .priority-title{margin:0 2px 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-  .hw{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--text);
-      border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-  .maj{color:var(--muted);font-size:11.5px;margin-top:6px}
-  .act{display:inline-block;margin-top:9px;font-size:12.5px;font-weight:700;color:var(--text);
-       text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:6px 11px}
-  .act:active{transform:translateY(1px);background:var(--panel-2)}
-  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;
-            opacity:0;pointer-events:none;transition:opacity .2s}
-  .sheet-bg.show{opacity:1;pointer-events:auto}
-  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:520px;margin:0 auto;
-         background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;
-         padding:16px 16px calc(16px + env(safe-area-inset-bottom));
-         transform:translateY(110%);transition:transform .22s}
-  .sheet.show{transform:none}
-  .sheet h3{margin:2px 2px 14px;font-size:13px;color:var(--muted);font-weight:700;
-            text-align:center;text-transform:uppercase;letter-spacing:.06em}
-  .sheet a{display:block;text-align:center;padding:15px;border-radius:12px;border:1px solid var(--line);
-           color:var(--text);text-decoration:none;font-weight:700;font-size:15px;margin-bottom:9px}
-  .sheet a:active{background:var(--panel-2)}
-  .sheet .cancel{border:0;color:var(--muted);margin-bottom:0}
-  .decision{font-size:11px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:2px 8px}
-  .decision.price{color:var(--best);border:1px solid var(--best)}
-  .decision.distance{color:var(--text);border:1px solid var(--line)}
-  .onboarding-fuels{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:14px}
-  .onboarding-fuel-btn{padding:14px;border-radius:12px;border:2px solid var(--line);
-                       background:transparent;color:var(--text);font-weight:700;font-size:15px;
-                       cursor:pointer;text-align:center;display:flex;flex-direction:column;gap:6px}
-  .onboarding-fuel-btn:active{transform:scale(0.98)}
-  .onboarding-fuel-btn.selected{border-color:var(--sel);background:var(--sel);color:var(--sel-ink)}
-  .onboarding-fuel-dot{width:24px;height:24px;border-radius:50%;margin:0 auto}
+    .scan-tools {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
 
-  @media (max-width:480px){
-    .voice-row{grid-template-columns:1fr}
-  }
-</style>
+    .scanner-note {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+      max-width: 68ch;
+    }
+
+    .geo-bar {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .geo-bar .field {
+      flex: 1 1 180px;
+      min-width: 130px;
+      width: auto;
+    }
+
+    .geo-status {
+      margin: 6px 0 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .geo-status.ok {
+      color: var(--ok);
+    }
+
+    .geo-status.error {
+      color: #8f1d1d;
+    }
+
+    .distance-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      background: rgba(22, 91, 51, 0.1);
+      color: var(--ok);
+      border: 1px solid rgba(22, 91, 51, 0.2);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .cheapest-near {
+      grid-column: 1 / -1;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(22, 91, 51, 0.07);
+      border: 1px solid rgba(22, 91, 51, 0.2);
+    }
+
+    .cheapest-near strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.84rem;
+      color: var(--ok);
+    }
+
+    .cheapest-near span {
+      font-size: 1.05rem;
+    }
+
+    .cheapest-near p {
+      margin: 4px 0 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .field,
+    .button {
+      min-height: 52px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font: inherit;
+    }
+
+    .field {
+      width: 100%;
+      padding: 0 18px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--text);
+    }
+
+    .button {
+      padding: 0 18px;
+      cursor: pointer;
+      background: var(--panel-strong);
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(30, 29, 27, 0.22);
+    }
+
+    .button.primary {
+      background: var(--accent);
+      color: #fff8f2;
+      border-color: transparent;
+    }
+
+    .button.primary:hover {
+      background: var(--accent-dark);
+    }
+
+    .grid {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      backdrop-filter: blur(12px);
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1.25rem;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 24px;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: #8f1d1d;
+    }
+
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .scan-panel {
+      margin-top: 16px;
+      display: none;
+      gap: 12px;
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.64);
+    }
+
+    .scan-panel.active {
+      display: grid;
+    }
+
+    .scan-hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .camera-shell {
+      position: relative;
+      overflow: hidden;
+      border-radius: 20px;
+      background: #0f0f0d;
+      aspect-ratio: 4 / 3;
+      border: 1px solid rgba(30, 29, 27, 0.14);
+      touch-action: manipulation;
+    }
+
+    .camera-view {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .camera-shell.tap-focus {
+      cursor: crosshair;
+    }
+
+    .focus-ring {
+      position: absolute;
+      width: 88px;
+      height: 88px;
+      margin-left: -44px;
+      margin-top: -44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 248, 242, 0.96);
+      box-shadow: 0 0 0 999px rgba(255, 255, 255, 0);
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(1.2);
+      transition: opacity 160ms ease, transform 220ms ease;
+    }
+
+    .focus-ring.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .scan-frame {
+      position: absolute;
+      inset: 14% 12%;
+      border: 2px solid rgba(255, 248, 242, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.18);
+      pointer-events: none;
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 6%;
+      right: 6%;
+      top: 50%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 146, 79, 0.2), rgba(255, 146, 79, 0.95), rgba(255, 146, 79, 0.2), transparent);
+      animation: sweep 2.1s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes sweep {
+      0% {
+        transform: translateY(-120px);
+      }
+
+      50% {
+        transform: translateY(120px);
+      }
+
+      100% {
+        transform: translateY(-120px);
+      }
+    }
+
+    .product-card {
+      display: grid;
+      gap: 16px;
+    }
+
+    .product-image {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 12px;
+    }
+
+    .placeholder {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1 / 1;
+      border-radius: 18px;
+      border: 1px dashed var(--line);
+      color: var(--muted);
+      text-align: center;
+      padding: 24px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .fact {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(30, 29, 27, 0.06);
+    }
+
+    .fact strong,
+    .fact span {
+      display: block;
+    }
+
+    .fact strong {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .fact span {
+      font-size: 1rem;
+    }
+
+    .feed-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .feed-header p {
+      margin: 0;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .summary-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(30, 29, 27, 0.06);
+    }
+
+    .summary-card strong,
+    .summary-card span {
+      display: block;
+    }
+
+    .summary-card strong {
+      margin-bottom: 6px;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    .summary-card span {
+      font-size: 1.1rem;
+    }
+
+    .price-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .price-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(30, 29, 27, 0.06);
+    }
+
+    .price-item h3 {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+
+    .price-item p {
+      margin: 4px 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .pill {
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: #1f1f1d;
+      color: #fffbf6;
+      white-space: nowrap;
+      font-size: 0.96rem;
+      align-self: center;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 920px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100% - 20px, 1180px);
+        padding-top: 20px;
+      }
+
+      .hero,
+      .panel {
+        padding: 18px;
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .scan-tools,
+      .geo-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .facts {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .price-item {
+        grid-template-columns: 1fr;
+      }
+
+      .pill {
+        justify-self: start;
+      }
+    }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <svg class="pump" viewBox="0 0 180 180" aria-hidden="true">
-      <rect x="52" y="40" width="58" height="100" rx="8" fill="none" stroke="var(--text)" stroke-width="9"/>
-      <rect x="64" y="56" width="34" height="26" rx="3" fill="var(--text)"/>
-      <path d="M110 66h14a10 10 0 0 1 10 10v40a9 9 0 0 0 18 0V86" fill="none" stroke="var(--text)" stroke-width="9" stroke-linecap="round"/>
-    </svg>
-    <div>
-      <h1>Carburants</h1>
-      <div class="sub">Autour de vous, ou commune par commune</div>
-    </div>
-    <button class="theme" id="theme" type="button" aria-label="Basculer clair/sombre">☀</button>
-  </header>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">Open Prices API</p>
+      <h1>Prix produits monde en direct</h1>
+      <p class="lead">
+        Interface HTML autonome basee uniquement sur l'API Open Prices.
+        Elle affiche un flux recent de prix publics et permet de rechercher un produit
+        par code-barres EAN/UPC, sans installation et donc publiable tel quel sur GitHub Pages.
+      </p>
 
-  <div class="seg" role="tablist">
-    <button id="tab-gps" type="button" role="tab" aria-selected="true">Autour de moi</button>
-    <button id="tab-manual" type="button" role="tab" aria-selected="false">Par commune</button>
-  </div>
-
-  <div id="gpsFields">
-    <p class="hint">Utilise la position du téléphone pour trouver les stations autour de toi. La position sert uniquement à la recherche en cours.</p>
-    <div class="field">
-      <label>Rayon de recherche</label>
-      <div class="chips" id="radius"></div>
-    </div>
-    <div class="field">
-      <label>Classement</label>
-      <div class="chips" id="sorts"></div>
-    </div>
-  </div>
-
-  <div id="manualFields" class="hidden">
-    <div class="field">
-      <label for="commune">Commune</label>
-      <input id="commune" placeholder="ex. Lyon, Le Havre…" autocomplete="off" enterkeyhint="search">
-    </div>
-    <div class="field">
-      <label for="cp">Code postal (option.)</label>
-      <input id="cp" class="cp" inputmode="numeric" placeholder="75015" autocomplete="off">
-    </div>
-  </div>
-
-  <div class="field">
-    <label>Carburant</label>
-    <div class="chips" id="chips"></div>
-  </div>
-
-  <div class="field">
-    <label>Filtre</label>
-    <div class="chips" id="filters"></div>
-  </div>
-
-  <button class="go" id="go" type="button">Stations près de moi</button>
-
-  <section class="assistant" aria-labelledby="assistant-title">
-    <div class="assistant-head">
-      <h2 id="assistant-title">Assistant vocal</h2>
-      <span class="assistant-badge">Gemini optionnel</span>
-    </div>
-    <p class="hint">Exemples: “Quel est l'essence la moins chère autour de moi ?” ou “Trouve-moi du gazole 24/24 dans 20 km”.</p>
-    <div class="voice-row">
-      <button class="voice-btn" id="voiceBtn" type="button">Parler</button>
-      <input id="voiceQuery" placeholder="Dicte ou saisis une demande naturelle" autocomplete="off" enterkeyhint="search">
-    </div>
-    <button class="go secondary" id="voiceGo" type="button">Analyser la demande</button>
-    <div class="voice-state" id="voiceState"></div>
-    <div class="voice-meta" id="voiceMeta"></div>
-    <details class="ai-settings">
-      <summary>Réglages Gemini</summary>
-      <p class="hint">Intégration propre recommandée: un proxy serveur qui garde la clé côté backend. Le mode “clé directe” reste utile pour tester un prototype statique, mais la clé sera exposée au navigateur.</p>
-      <div class="field">
-        <label for="geminiProxyUrl">URL du proxy Gemini</label>
-        <input id="geminiProxyUrl" placeholder="https://ton-backend.example/api/gemini-intent" autocomplete="off">
+      <div class="toolbar">
+        <input id="barcodeInput" class="field" type="text" inputmode="numeric" placeholder="Ex: 3274080005003" value="3274080005003">
+        <button id="searchButton" class="button primary" type="button">Rechercher un produit</button>
+        <button id="refreshButton" class="button" type="button">Flux mondial recent</button>
       </div>
-      <div class="field">
-        <label for="geminiModel">Modèle Gemini</label>
-        <input id="geminiModel" placeholder="gemini-2.5-flash-lite" autocomplete="off">
+
+      <div class="geo-bar">
+        <button id="geoButton" class="button" type="button">Localisation GPS</button>
+        <input id="geoInput" class="field" type="text" placeholder="Ou saisissez une ville ou adresse...">
+        <button id="geoSearchButton" class="button" type="button">Valider</button>
+        <button id="geoClearButton" class="button" type="button" hidden>Effacer</button>
       </div>
-      <div class="field">
-        <label for="geminiApiKey">Clé API directe (test seulement)</label>
-        <input id="geminiApiKey" type="password" placeholder="AIza…" autocomplete="off">
+      <p id="geoStatus" class="geo-status" hidden></p>
+
+      <div class="scan-tools">
+        <button id="captureButton" class="button primary" type="button">Ouvrir l'appareil photo natif</button>
+        <button id="scanButton" class="button" type="button">Scanner dans la page</button>
+        <button id="externalScannerButton" class="button" type="button">Ouvrir une app scanner</button>
+        <button id="refocusButton" class="button" type="button" hidden>Relancer la mise au point</button>
+        <button id="stopScanButton" class="button" type="button" hidden>Arreter le scan</button>
       </div>
-    </details>
-  </section>
 
-  <div id="out" aria-live="polite"></div>
+      <p id="scannerNote" class="scanner-note">
+        Mode recommande: l'appareil photo natif du telephone. Le scan dans la page reste disponible, mais la mise au point web depend fortement du navigateur et du webview utilise.
+      </p>
 
-  <div class="foot">
-    Données officielles DGCCRF via data.economie.gouv.fr · mises à jour ~10 min.<br>
-    Ajoute cette page à ton écran d'accueil pour un accès type appli.
-  </div>
-</div>
+      <input id="captureInput" type="file" accept="image/*" capture="environment" hidden>
 
-<div class="sheet-bg" id="navbg"></div>
-<div class="sheet" id="navsheet" role="dialog" aria-label="Choisir une application d'itinéraire">
-  <h3>Ouvrir l'itinéraire dans…</h3>
-  <a id="nav-waze" target="_blank" rel="noopener">Waze</a>
-  <a id="nav-gmaps" target="_blank" rel="noopener">Google Maps</a>
-  <a id="nav-apple" target="_blank" rel="noopener">Plans (Apple)</a>
-  <a class="cancel" id="nav-cancel" href="#">Annuler</a>
-</div>
-
-<div class="sheet-bg" id="onboardingbg"></div>
-<div class="sheet" id="onboardingsheet" role="dialog" aria-label="Choisir tes carburants préférés">
-  <h3>Tes carburants préférés</h3>
-  <p class="hint" style="margin-bottom:16px">Sélectionne les carburants que tu utilises généralement. Ils s'afficheront en priorité dans les résultats.</p>
-  <div class="onboarding-fuels" id="onboardingFuels"></div>
-  <button class="go" id="onboardingConfirm" type="button">C'est noté ✓</button>
-</div>
-
-<script>
-  const API = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/" +
-              "datasets/prix-des-carburants-en-france-flux-instantane-v2/records";
-  const FUELS = {gazole:"Gazole", sp95:"SP95", sp98:"SP98", e10:"E10", e85:"E85", gplc:"GPLc"};
-  const FUEL_COLORS = {
-    gazole:{c:"#F4C21B", ink:"#241a02"},
-    sp95:{c:"#3FB56D", ink:"#04180f"},
-    sp98:{c:"#E0564B", ink:"#2a0906"},
-    e10:{c:"#9BC53D", ink:"#18220a"},
-    e85:{c:"#4C82F0", ink:"#050f28"},
-    gplc:{c:"#22B8B0", ink:"#04211f"}
-  };
-  const BRANDS = {
-    leclerc:{name:"Leclerc",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#003DA5"/><text x="50" y="60" font-size="48" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">E</text></svg>'},
-    carrefour:{name:"Carrefour",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#E31842"/><text x="50" y="65" font-size="40" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">C</text></svg>'},
-    intermarche:{name:"Intermarché",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1B5BA8"/><text x="50" y="65" font-size="36" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">IM</text></svg>'},
-    total:{name:"TotalEnergies",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#EC1C24"/><circle cx="50" cy="50" r="30" fill="#fff"/><circle cx="50" cy="50" r="25" fill="#EC1C24"/><text x="50" y="60" font-size="32" font-weight="bold" fill="#fff" text-anchor="middle">T</text></svg>'},
-    esso:{name:"Esso",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#BE0000"/><text x="50" y="65" font-size="42" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">E</text></svg>'},
-    shell:{name:"Shell",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#FFD600"/><path d="M50 30 L65 45 L65 55 L50 70 L35 55 L35 45 Z" fill="#000"/></svg>'},
-    lidl:{name:"Lidl",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#FF6600"/><text x="50" y="65" font-size="38" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">L</text></svg>'},
-    cora:{name:"Cora",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#00A3A3"/><text x="50" y="65" font-size="40" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">C</text></svg>'},
-    casino:{name:"Casino",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#C70031"/><text x="50" y="65" font-size="35" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">♣</text></svg>'},
-    u:{name:"Système U",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#D41F36"/><text x="50" y="65" font-size="48" font-weight="bold" fill="#fff" text-anchor="middle" font-family="Arial">U</text></svg>'},
-    independent:{name:"Indépendante",logo:'<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#666"/><circle cx="30" cy="30" r="8" fill="#fff"/><circle cx="70" cy="30" r="8" fill="#fff"/><path d="M30 50 L70 50 M35 70 L65 70 Q65 80 50 80 Q35 80 35 70" fill="#fff"/></svg>'}
-  };
-  const RADIUS_OPTIONS = [5, 10, 20, 30];
-  const SORT_OPTIONS = {
-    distance:"Plus proche",
-    price:"Moins cher"
-  };
-  const MEM = "carbu_prefs";
-  const AI_MEM = "carbu_ai";
-  const PRICE_HISTORY_MEM = "carbu_price_history";
-  const DEFAULT_GEMINI_CONFIG = window.MON_ESSENCE_CONFIG || {};
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  let fuel = "gazole";
-  let mode = "gps";
-  let radiusKm = 10;
-  let only24 = false;
-  let sortBy = "distance";
-  let preferredFuels = ["e10", "sp95"];
-  let voiceSearchPending = false;
-  let lastRenderedRows = [];
-  let recognition = null;
-  let isListening = false;
-
-  const out = document.getElementById("out");
-  const goBtn = document.getElementById("go");
-  const communeInput = document.getElementById("commune");
-  const cpInput = document.getElementById("cp");
-  const chipsEl = document.getElementById("chips");
-  const radiusEl = document.getElementById("radius");
-  const sortsEl = document.getElementById("sorts");
-  const filtersEl = document.getElementById("filters");
-  const voiceBtn = document.getElementById("voiceBtn");
-  const voiceInput = document.getElementById("voiceQuery");
-  const voiceGoBtn = document.getElementById("voiceGo");
-  const voiceState = document.getElementById("voiceState");
-  const voiceMeta = document.getElementById("voiceMeta");
-  const geminiProxyUrlInput = document.getElementById("geminiProxyUrl");
-  const geminiModelInput = document.getElementById("geminiModel");
-  const geminiApiKeyInput = document.getElementById("geminiApiKey");
-  const tabGps = document.getElementById("tab-gps");
-  const tabManual = document.getElementById("tab-manual");
-  const gpsFields = document.getElementById("gpsFields");
-  const manualFields = document.getElementById("manualFields");
-  const onboardingBg = document.getElementById("onboardingbg");
-  const onboardingSheet = document.getElementById("onboardingsheet");
-  const onboardingFuels = document.getElementById("onboardingFuels");
-  const onboardingConfirm = document.getElementById("onboardingConfirm");
-
-  const mem = (() => {
-    try{ return JSON.parse(localStorage.getItem(MEM) || "{}"); }
-    catch(e){ return {}; }
-  })();
-  if(mem.fuel && FUELS[mem.fuel]) fuel = mem.fuel;
-  if(RADIUS_OPTIONS.includes(mem.radiusKm)) radiusKm = mem.radiusKm;
-  if(mem.sortBy === "distance" || mem.sortBy === "price") sortBy = mem.sortBy;
-  only24 = !!mem.only24;
-  if(mem.mode === "manual" || mem.mode === "gps") mode = mem.mode;
-  if(mem.preferredFuels && Array.isArray(mem.preferredFuels)) preferredFuels = mem.preferredFuels;
-
-  const aiMem = (() => {
-    try{ return JSON.parse(localStorage.getItem(AI_MEM) || "{}"); }
-    catch(e){ return {}; }
-  })();
-  const aiSettings = {
-    proxyUrl: DEFAULT_GEMINI_CONFIG.geminiProxyUrl || aiMem.proxyUrl || "",
-    model: DEFAULT_GEMINI_CONFIG.geminiModel || aiMem.model || "gemini-2.5-flash-lite",
-    apiKey: DEFAULT_GEMINI_CONFIG.geminiApiKey || aiMem.apiKey || ""
-  };
-
-  let filter24Btn;
-
-  function remember(){
-    try{
-      localStorage.setItem(MEM, JSON.stringify({
-        mode, fuel, radiusKm, only24, sortBy, preferredFuels,
-        commune: communeInput.value,
-        cp: cpInput.value
-      }));
-    }catch(e){}
-  }
-
-  function rememberAi(){
-    try{ localStorage.setItem(AI_MEM, JSON.stringify(aiSettings)); }
-    catch(e){}
-  }
-
-  function getPriceHistory(){
-    try{ return JSON.parse(localStorage.getItem(PRICE_HISTORY_MEM) || "{}"); }
-    catch(e){ return {}; }
-  }
-
-  function savePriceHistory(history){
-    try{ localStorage.setItem(PRICE_HISTORY_MEM, JSON.stringify(history)); }
-    catch(e){}
-  }
-
-  function trackPrice(fuelType, price){
-    if(!price) return;
-    const today = new Date().toISOString().split("T")[0];
-    const history = getPriceHistory();
-    if(!history[today]) history[today] = {};
-    history[today][fuelType] = price;
-    savePriceHistory(history);
-  }
-
-  function getEvolution(fuelType, daysBack){
-    const history = getPriceHistory();
-    const today = new Date();
-    const dataPoints = [];
-    for(let i = 0; i < daysBack; i++){
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
-      if(history[dateStr] && history[dateStr][fuelType] != null){
-        dataPoints.unshift({date: dateStr, price: history[dateStr][fuelType]});
-      }
-    }
-    if(dataPoints.length < 2) return null;
-    const oldest = dataPoints[0].price;
-    const newest = dataPoints[dataPoints.length - 1].price;
-    const change = newest - oldest;
-    const percent = (change / oldest * 100).toFixed(1);
-    return {change, percent, oldest, newest, points: dataPoints.length};
-  }
-
-  function showOnboarding(){
-    onboardingFuels.innerHTML = "";
-    Object.entries(FUELS).forEach(([key, label]) => {
-      const btn = document.createElement("button");
-      btn.className = "onboarding-fuel-btn";
-      btn.type = "button";
-      const isSelected = preferredFuels.includes(key);
-      if(isSelected) btn.classList.add("selected");
-      btn.innerHTML = `
-        <div class="onboarding-fuel-dot" style="background:${FUEL_COLORS[key].c}"></div>
-        <div>${label}</div>
-      `;
-      btn.onclick = () => {
-        if(preferredFuels.includes(key)){
-          preferredFuels = preferredFuels.filter(f => f !== key);
-        } else {
-          preferredFuels.push(key);
-        }
-        showOnboarding();
-      };
-      onboardingFuels.appendChild(btn);
-    });
-    onboardingBg.classList.add("show");
-    onboardingSheet.classList.add("show");
-  }
-
-  function closeOnboarding(){
-    remember();
-    onboardingBg.classList.remove("show");
-    onboardingSheet.classList.remove("show");
-  }
-
-  function setFuelVar(){
-    document.documentElement.style.setProperty("--fuel", (FUEL_COLORS[fuel] || {}).c || "#FFB627");
-  }
-
-  function updateGoLabel(){
-    if(mode === "gps"){
-      goBtn.textContent = sortBy === "price" ? "Trouver le moins cher autour de moi" : "Stations près de moi";
-      return;
-    }
-    goBtn.textContent = "Chercher les prix";
-  }
-
-  function setVoiceMeta(text, isError){
-    voiceMeta.textContent = text || "";
-    voiceMeta.classList.toggle("error", !!isError);
-  }
-
-  function refreshAssistantState(){
-    const parts = ["Analyse locale prête"];
-    if(aiSettings.proxyUrl) parts.push("Gemini via proxy");
-    else if(aiSettings.apiKey) parts.push("Gemini direct");
-    else parts.push("Gemini non configuré");
-    voiceState.innerHTML = `Mode actif: <b>${parts.join(" · ")}</b>`;
-  }
-
-  function syncFuelChips(){
-    [...chipsEl.children].forEach(chip => chip.setAttribute("aria-pressed", chip.dataset.fuel === fuel));
-    setFuelVar();
-    remember();
-  }
-
-  function syncRadiusChips(){
-    [...radiusEl.children].forEach(chip => chip.setAttribute("aria-pressed", Number(chip.dataset.radius) === radiusKm));
-    remember();
-  }
-
-  function syncSortChips(){
-    [...sortsEl.children].forEach(chip => chip.setAttribute("aria-pressed", chip.dataset.sort === sortBy));
-    updateGoLabel();
-    remember();
-  }
-
-  function syncFilterChip(){
-    if(filter24Btn) filter24Btn.setAttribute("aria-pressed", only24);
-    remember();
-  }
-
-  Object.entries(FUELS).forEach(([key, label]) => {
-    const button = document.createElement("button");
-    button.className = "chip";
-    button.type = "button";
-    button.dataset.fuel = key;
-    button.innerHTML = `<span class="dot" style="background:${FUEL_COLORS[key].c}"></span>${label}`;
-    button.onclick = () => {
-      fuel = key;
-      syncFuelChips();
-    };
-    chipsEl.appendChild(button);
-  });
-
-  RADIUS_OPTIONS.forEach(km => {
-    const button = document.createElement("button");
-    button.className = "chip";
-    button.type = "button";
-    button.dataset.radius = String(km);
-    button.textContent = `${km} km`;
-    button.onclick = () => {
-      radiusKm = km;
-      syncRadiusChips();
-    };
-    radiusEl.appendChild(button);
-  });
-
-  Object.entries(SORT_OPTIONS).forEach(([key, label]) => {
-    const button = document.createElement("button");
-    button.className = "chip";
-    button.type = "button";
-    button.dataset.sort = key;
-    button.textContent = label;
-    button.onclick = () => {
-      sortBy = key;
-      syncSortChips();
-    };
-    sortsEl.appendChild(button);
-  });
-
-  filter24Btn = document.createElement("button");
-  filter24Btn.className = "chip";
-  filter24Btn.type = "button";
-  filter24Btn.textContent = "Ouvert 24/24";
-  filter24Btn.onclick = () => {
-    only24 = !only24;
-    syncFilterChip();
-  };
-  filtersEl.appendChild(filter24Btn);
-
-  function setMode(nextMode){
-    mode = nextMode;
-    tabGps.setAttribute("aria-selected", nextMode === "gps");
-    tabManual.setAttribute("aria-selected", nextMode === "manual");
-    gpsFields.classList.toggle("hidden", nextMode !== "gps");
-    manualFields.classList.toggle("hidden", nextMode !== "manual");
-    updateGoLabel();
-    out.innerHTML = "";
-    lastRenderedRows = [];
-    remember();
-  }
-
-  tabGps.onclick = () => setMode("gps");
-  tabManual.onclick = () => setMode("manual");
-
-  function euro(value){
-    let price = parseFloat(value);
-    if(!isFinite(price)) return null;
-    if(price > 10) price /= 1000;
-    return price;
-  }
-
-  function pricesOf(rec){
-    const prices = {};
-    for(const key in rec){
-      if(!key.endsWith("_prix")) continue;
-      const price = euro(rec[key]);
-      if(price !== null) prices[key.slice(0, -5)] = price;
-    }
-    return prices;
-  }
-
-  function coords(rec){
-    const lat = parseFloat(rec.latitude) / 1e5;
-    const lon = parseFloat(rec.longitude) / 1e5;
-    return (isFinite(lat) && isFinite(lon)) ? [lat, lon] : null;
-  }
-
-  function haversine(lat1, lon1, lat2, lon2){
-    const earth = 6371;
-    const ratio = Math.PI / 180;
-    const dLat = (lat2 - lat1) * ratio;
-    const dLon = (lon2 - lon1) * ratio;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * ratio) * Math.cos(lat2 * ratio) * Math.sin(dLon / 2) ** 2;
-    return 2 * earth * Math.asin(Math.sqrt(a));
-  }
-
-  function fmtDist(km){
-    return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace(".", ",")} km`;
-  }
-
-  function relTime(value){
-    if(!value) return "";
-    const timestamp = Date.parse(String(value).replace(" ", "T"));
-    if(isNaN(timestamp)) return "";
-    const delta = (Date.now() - timestamp) / 1000;
-    if(delta < 3600) return `il y a ${Math.max(1, Math.round(delta / 60))} min`;
-    if(delta < 86400) return `il y a ${Math.round(delta / 3600)} h`;
-    const days = Math.round(delta / 86400);
-    return days === 1 ? "hier" : `il y a ${days} j`;
-  }
-
-  function is24(rec){
-    const auto24 = String(rec.horaires_automate_24_24 ?? "").toLowerCase();
-    if(auto24 === "1" || auto24 === "oui" || auto24 === "true" || auto24.includes("24")) return true;
-    return String(rec.horaires ?? "").includes("24/24");
-  }
-
-  function detectBrand(rec){
-    const fullText = `${rec.adresse} ${rec.ville}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const checks = [
-      [/\be\.?leclerc\b/, "leclerc"],
-      [/\bleclerc\b/, "leclerc"],
-      [/\bcarrefour\b/, "carrefour"],
-      [/\bintermarche\b/, "intermarche"],
-      [/\binter marche\b/, "intermarche"],
-      [/\btotal\b/, "total"],
-      [/\besso\b/, "esso"],
-      [/\bshell\b/, "shell"],
-      [/\blidl\b/, "lidl"],
-      [/\bcora\b/, "cora"],
-      [/\bcasino\b/, "casino"],
-      [/\bgeant casino\b/, "casino"],
-      [/\bsysteme u\b/, "u"],
-      [/\bsysteme-u\b/, "u"],
-      [/\b(super|hyper)?u\b/, "u"]
-    ];
-    for(const [matcher, key] of checks){
-      if(matcher.test(fullText)) return key;
-    }
-    return "independent";
-  }
-
-  function navUrls(lat, lon, query){
-    const hasGeo = lat && lon;
-    return {
-      waze: hasGeo ? `https://waze.com/ul?ll=${lat},${lon}&navigate=yes` : `https://waze.com/ul?q=${query}&navigate=yes`,
-      gmaps: hasGeo ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` : `https://www.google.com/maps/dir/?api=1&destination=${query}`,
-      apple: hasGeo ? `https://maps.apple.com/?daddr=${lat},${lon}` : `https://maps.apple.com/?daddr=${query}`
-    };
-  }
-
-  function filter24(rows){
-    if(!only24) return {rows, note:""};
-    const filtered = rows.filter(item => is24(item.rec));
-    if(filtered.length) return {rows:filtered, note:" · 24/24 uniquement"};
-    return {rows, note:" · aucune 24/24 détectée, toutes affichées"};
-  }
-
-  const esc = value => String(value ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-
-  function status(html){
-    lastRenderedRows = [];
-    out.innerHTML = `<div class="status">${html}</div>`;
-  }
-
-  function finalizeVoiceFlow(message, shouldSpeak, isError){
-    if(!voiceSearchPending) return;
-    setVoiceMeta(message, isError);
-    voiceSearchPending = false;
-    if(shouldSpeak && "speechSynthesis" in window){
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(message);
-      utterance.lang = "fr-FR";
-      utterance.rate = 1;
-      window.speechSynthesis.speak(utterance);
-    }
-  }
-
-  function buildVoiceSummary(item){
-    if(!item) return "Aucune station exploitable.";
-    const address = [item.rec.adresse, item.rec.cp, item.rec.ville].filter(Boolean).join(", ");
-    const distance = item.dist != null ? ` à ${fmtDist(item.dist)}` : "";
-    const rankText = sortBy === "price" ? "la station la moins chère" : "la station la plus proche";
-    return `Pour ${FUELS[fuel]}, ${rankText} est ${address || "adresse non précisée"}, à ${item.p[fuel].toFixed(3).replace(".", ",")} euro le litre${distance}.`;
-  }
-
-  function findCheapestRow(rows){
-    return rows.reduce((best, current) => {
-      if(!best) return current;
-      const priceDelta = current.p[fuel] - best.p[fuel];
-      if(priceDelta < -0.0001) return current;
-      if(Math.abs(priceDelta) <= 0.0001 && (current.dist ?? 1e9) < (best.dist ?? 1e9)) return current;
-      return best;
-    }, null);
-  }
-
-  function findNearestRow(rows){
-    return rows.reduce((best, current) => {
-      if(!best) return current;
-      const distDelta = (current.dist ?? 1e9) - (best.dist ?? 1e9);
-      if(distDelta < -0.0001) return current;
-      if(Math.abs(distDelta) <= 0.0001 && current.p[fuel] < best.p[fuel]) return current;
-      return best;
-    }, null);
-  }
-
-  function orderGpsRows(rows){
-    const cheapest = findCheapestRow(rows);
-    const nearest = findNearestRow(rows);
-    const leading = [];
-    if(cheapest) leading.push(cheapest);
-    if(nearest && nearest !== cheapest) leading.push(nearest);
-    const remainder = rows.filter(row => !leading.includes(row));
-    remainder.sort((a, b) => {
-      const byPrice = a.p[fuel] - b.p[fuel];
-      if(Math.abs(byPrice) > 0.0001) return byPrice;
-      return (a.dist ?? 1e9) - (b.dist ?? 1e9);
-    });
-    return {ordered:[...leading, ...remainder], cheapest, nearest};
-  }
-
-  function priorityBadges(row, cheapest, nearest){
-    const badges = [];
-    if(row === cheapest) badges.push('<span class="decision price">MOINS CHER</span>');
-    if(row === nearest) badges.push('<span class="decision distance">PLUS PROCHE</span>');
-    return badges.join("");
-  }
-
-  function renderCard(row, best, cheapest, nearest){
-    const {rec, p, dist} = row;
-    const isBest = p[fuel] === best;
-    const others = Object.keys(p).filter(key => key !== fuel)
-      .map(key => `${FUELS[key] || key} <b>${p[key].toFixed(3)}</b>`).join(" · ");
-    const updatedAt = relTime(rec[`${fuel}_maj`]);
-    const auto = String(rec.pop || "").toUpperCase() === "A";
-    const stationCoords = coords(rec);
-    const navQuery = encodeURIComponent(`${rec.adresse || ""} ${rec.cp || ""} ${rec.ville || ""}`.trim());
-    const lastUpdateTimestamp = Date.parse(String(rec[`${fuel}_maj`]).replace(" ", "T"));
-    const daysSinceLastUpdate = !isNaN(lastUpdateTimestamp) ? Math.ceil((Date.now() - lastUpdateTimestamp) / 86400000) : null;
-    const evolutionSinceUpdate = daysSinceLastUpdate && daysSinceLastUpdate > 0 ? getEvolution(fuel, daysSinceLastUpdate) : null;
-    const updateColor = evolutionSinceUpdate?.percent > 0 ? '#E9795B' : '#43C08A';
-    const updateArrow = evolutionSinceUpdate?.percent > 0 ? '↑' : '↓';
-    const evolutionHtml = evolutionSinceUpdate ? `<div class="evolution" style="font-size:12px;color:${updateColor};margin-top:8px;font-weight:600">${updateArrow} ${Math.abs(evolutionSinceUpdate.percent)}% depuis MàJ</div>` : "";
-    const brandKey = detectBrand(rec);
-    const brand = BRANDS[brandKey] || BRANDS.independent;
-    return `
-      <div class="card${isBest ? " best" : ""}" style="border-left:4px solid ${(FUEL_COLORS[fuel] || {}).c || 'var(--line)'}">
-        <div class="price">${p[fuel].toFixed(3)}<small>€</small></div>
-        <div class="info">
-          <div class="brand-header" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div style="width:32px;height:32px;flex-shrink:0;border-radius:6px;overflow:hidden;background:var(--panel-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center">${brand.logo}</div>
-            <div style="font-weight:700;font-size:13px;color:var(--text)">${brand.name}</div>
-          </div>
-          <div class="addr">${esc(rec.adresse || "Adresse non précisée")}</div>
-          <div class="loc">${esc(rec.cp || "")} ${esc(rec.ville || "")}</div>
-          <div class="badges">
-            ${dist != null ? `<span class="dist">à ${fmtDist(dist)}</span>` : ""}
-            ${priorityBadges(row, cheapest, nearest)}
-            ${isBest ? `<span class="tag">MEILLEUR PRIX</span>` : ""}
-            ${auto ? `<span class="hw">Autoroute</span>` : ""}
-            ${is24(rec) ? `<span class="hw">24/24</span>` : ""}
-          </div>
-          ${others ? `<div class="others">${others}</div>` : ""}
-          ${updatedAt ? `<div class="maj">Prix mis à jour ${updatedAt}</div>` : ""}
-          ${evolutionHtml}
-          <a class="act" href="#" data-lat="${stationCoords ? stationCoords[0] : ""}" data-lon="${stationCoords ? stationCoords[1] : ""}" data-q="${navQuery}">Itinéraire →</a>
+      <div id="scanPanel" class="scan-panel">
+        <p id="scanHint" class="scan-hint">
+          Ouvrez cette page en HTTPS sur votre telephone, autorisez la camera, puis cadrez le code-barres.
+        </p>
+        <div class="camera-shell">
+          <video id="cameraView" class="camera-view" autoplay playsinline muted></video>
+          <div id="focusRing" class="focus-ring"></div>
+          <div class="scan-frame"></div>
+          <div class="scan-line"></div>
         </div>
-      </div>`;
-  }
+      </div>
 
-  function render(rows, head){
-    if(!rows.length) return;
-    const isGpsResults = mode === "gps" && rows.some(row => row.dist != null);
-    const prioritized = isGpsResults ? orderGpsRows(rows) : {ordered:rows, cheapest:null, nearest:null};
-    rows = prioritized.ordered;
-    lastRenderedRows = rows;
-    const prices = rows.map(row => row.p[fuel]);
-    const best = Math.min(...prices);
-    const worst = Math.max(...prices);
-    const spread = worst - best;
-    const summary = spread > 0.001
-      ? `<div class="summary">De <b>${best.toFixed(3)}</b> à <b>${worst.toFixed(3)}</b> € — jusqu'à <b>${(spread * 50).toFixed(2)} €</b> d'écart sur un plein de 50 L.</div>`
-      : "";
-    let html = `<div class="count">${head}</div>${summary}`;
-    const displayedIds = new Set();
-    if(isGpsResults && prioritized.cheapest){
-      html += `<div class="priority-title">Décision immédiate</div><div class="priority">`;
-      html += renderCard(prioritized.cheapest, best, prioritized.cheapest, prioritized.nearest);
-      displayedIds.add(prioritized.cheapest.rec.id);
-      if(prioritized.nearest && prioritized.nearest !== prioritized.cheapest){
-        html += renderCard(prioritized.nearest, best, prioritized.cheapest, prioritized.nearest);
-        displayedIds.add(prioritized.nearest.rec.id);
-      }
-      html += `</div>`;
-    }
-    for(const row of rows){
-      if(!displayedIds.has(row.rec.id)){
-        html += renderCard(row, best, prioritized.cheapest, prioritized.nearest);
-      }
-      trackPrice(fuel, row.p[fuel]);
-    }
-    out.innerHTML = html;
-    finalizeVoiceFlow(buildVoiceSummary(rows[0]), true, false);
-  }
+      <div id="status" class="status">Pret. Chargement du flux public...</div>
+    </section>
 
-  async function apiGet(params){
-    const response = await fetch(`${API}?${params}`);
-    if(!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json()).results || [];
-  }
+    <section class="grid">
+      <article class="panel">
+        <h2>Produit</h2>
+        <div id="productPanel" class="product-card">
+          <div class="placeholder">Saisissez un code-barres, puis lancez la recherche.</div>
+        </div>
+      </article>
 
-  async function searchManual(){
-    const commune = communeInput.value.trim().replace(/"/g, "");
-    const cp = cpInput.value.trim().replace(/\D/g, "");
-    if(!commune){
-      status("Entre d'abord une commune à chercher.");
-      finalizeVoiceFlow("Je n'ai pas reconnu de commune à rechercher.", true, true);
-      return;
-    }
-    remember();
-    let where = `ville like "${commune}"`;
-    if(cp) where += ` and cp = "${cp}"`;
-    status(`Recherche des stations à <b>${esc(commune)}</b>…`);
-    let recs;
-    try{
-      recs = await apiGet(`where=${encodeURIComponent(where)}&limit=100`);
-    }catch(error){
-      status(`Impossible de joindre le service. Vérifie ta connexion.<br><span style="font-size:12px">(${esc(error.message)})</span>`);
-      finalizeVoiceFlow("Le service carburant est indisponible pour le moment.", true, true);
-      return;
-    }
-    let rows = recs.map(rec => ({rec, p: pricesOf(rec)}))
-      .filter(item => fuel in item.p)
-      .sort((a, b) => a.p[fuel] - b.p[fuel]);
-    if(!rows.length){
-      status(`Aucune station ne propose du <b>${FUELS[fuel]}</b> à <b>${esc(commune)}</b>${cp ? ` (${cp})` : ""}.<br>Essaie un autre carburant.`);
-      finalizeVoiceFlow(`Aucune station avec ${FUELS[fuel]} à ${commune}.`, true, true);
-      return;
-    }
-    const filtered = filter24(rows);
-    rows = filtered.rows;
-    render(rows, `${rows.length} station(s) · ${FUELS[fuel]}, moins cher d'abord${filtered.note}`);
-  }
+      <article class="panel">
+        <div class="feed-header">
+          <div>
+            <h2 id="feedTitle">Prix recents dans le monde</h2>
+            <p id="feedSubtitle" class="muted">Source: Open Prices public API</p>
+          </div>
+        </div>
+        <div id="comparisonSummary" class="summary-grid"></div>
+        <div id="priceList" class="price-list"></div>
+        <p class="footer-note">
+          Donnees: Open Prices / Open Food Facts. Pensez a conserver l'attribution de la source lors de la publication.
+        </p>
+      </article>
+    </section>
+  </main>
 
-  function searchGps(){
-    if(!navigator.geolocation){
-      status("Ce navigateur ne fournit pas la géolocalisation.");
-      finalizeVoiceFlow("La géolocalisation n'est pas disponible sur cet appareil.", true, true);
-      return;
-    }
-    remember();
-    status("Localisation en cours… (autorise l'accès si on te le demande)");
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const {latitude:lat, longitude:lon} = pos.coords;
-      const point = `geom'POINT(${lon} ${lat})'`;
-      const where = `within_distance(geom, ${point}, ${radiusKm}km)`;
-      const params = `where=${encodeURIComponent(where)}` +
-        `&order_by=${encodeURIComponent(`distance(geom, ${point})`)}&limit=60`;
-      status(`Stations dans un rayon de ${radiusKm} km…`);
-      let recs;
-      try{
-        recs = await apiGet(params);
-      }catch(error){
-        status(`Impossible de joindre le service. Vérifie ta connexion.<br><span style="font-size:12px">(${esc(error.message)})</span>`);
-        finalizeVoiceFlow("Le service carburant est indisponible pour le moment.", true, true);
-        return;
-      }
-      let rows = recs.map(rec => {
-          const prices = pricesOf(rec);
-          const stationCoords = coords(rec);
-          return {rec, p: prices, dist: stationCoords ? haversine(lat, lon, stationCoords[0], stationCoords[1]) : null};
-        })
-        .filter(item => fuel in item.p)
-        .sort((a, b) => {
-          if(sortBy === "price"){
-            const byPrice = a.p[fuel] - b.p[fuel];
-            if(Math.abs(byPrice) > 0.0001) return byPrice;
-          }
-          return (a.dist ?? 1e9) - (b.dist ?? 1e9);
-        });
-      if(!rows.length){
-        status(`Aucune station avec du <b>${FUELS[fuel]}</b> dans ${radiusKm} km.<br>Élargis le rayon ou change de carburant.`);
-        finalizeVoiceFlow(`Aucune station avec ${FUELS[fuel]} dans ${radiusKm} kilomètres.`, true, true);
-        return;
-      }
-      const filtered = filter24(rows);
-      rows = filtered.rows;
-      render(rows, `${rows.length} station(s) · ${FUELS[fuel]}, moins cher puis plus proche${filtered.note}`);
-    }, error => {
-      const message = {
-        1:"Accès à la position refusé. Autorise-le dans les réglages, ou passe en mode « Par commune ».",
-        2:"Position indisponible pour le moment. Réessaie dehors ou plus tard.",
-        3:"La localisation a mis trop de temps. Réessaie."
-      }[error.code] || "Localisation impossible.";
-      status(message);
-      finalizeVoiceFlow(message, true, true);
-    }, {enableHighAccuracy:false, timeout:10000, maximumAge:60000});
-  }
+  <script>
+    const API_BASE = "https://prices.openfoodfacts.org/api/v1";
+    const RECENT_PAGE_SIZE = 12;
+    const PRODUCT_PAGE_SIZE = 12;
 
-  function normalizeText(text){
-    return String(text || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9/\s'-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
+    const barcodeInput = document.getElementById("barcodeInput");
+    const searchButton = document.getElementById("searchButton");
+    const refreshButton = document.getElementById("refreshButton");
+    const statusNode = document.getElementById("status");
+    const productPanel = document.getElementById("productPanel");
+    const priceList = document.getElementById("priceList");
+    const feedTitle = document.getElementById("feedTitle");
+    const feedSubtitle = document.getElementById("feedSubtitle");
+    const comparisonSummary = document.getElementById("comparisonSummary");
+    const scanButton = document.getElementById("scanButton");
+    const captureButton = document.getElementById("captureButton");
+    const externalScannerButton = document.getElementById("externalScannerButton");
+    const captureInput = document.getElementById("captureInput");
+    const refocusButton = document.getElementById("refocusButton");
+    const stopScanButton = document.getElementById("stopScanButton");
+    const scanPanel = document.getElementById("scanPanel");
+    const scanHint = document.getElementById("scanHint");
+    const cameraView = document.getElementById("cameraView");
+    const focusRing = document.getElementById("focusRing");
+    const scannerNote = document.getElementById("scannerNote");
+    const geoButton = document.getElementById("geoButton");
+    const geoInput = document.getElementById("geoInput");
+    const geoSearchButton = document.getElementById("geoSearchButton");
+    const geoClearButton = document.getElementById("geoClearButton");
+    const geoStatus = document.getElementById("geoStatus");
 
-  function toTitleCase(text){
-    return String(text || "").split(" ").filter(Boolean)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
-  }
+    let scanStream = null;
+    let scanIntervalId = null;
+    let scanBusy = false;
+    let barcodeDetector = null;
+    let imageCapture = null;
+    let cameraCapabilities = {};
+    let focusPointSupported = false;
+    let zxingReader = null;
+    let userLat = null;
+    let userLon = null;
+    let userLocationLabel = "";
 
-  function nearestRadius(value){
-    const km = Number(value);
-    if(!isFinite(km)) return radiusKm;
-    return RADIUS_OPTIONS.reduce((best, current) => Math.abs(current - km) < Math.abs(best - km) ? current : best, RADIUS_OPTIONS[0]);
-  }
-
-  function pickGenericFuelFromContext(){
-    return ["sp95", "sp98", "e10", "e85"].includes(fuel) ? fuel : "e10";
-  }
-
-  function describeIntent(intent){
-    const modeLabel = intent.mode === "manual" ? `commune ${intent.commune || "à préciser"}` : "autour de toi";
-    const bits = [modeLabel, FUELS[intent.fuel] || FUELS[fuel], intent.sortBy === "price" ? "tri par prix" : "tri par distance"];
-    if(intent.only24) bits.push("24/24");
-    if(intent.radiusKm) bits.push(`${intent.radiusKm} km`);
-    const source = intent.source === "local" ? "analyse locale" : "analyse Gemini";
-    return `Interprétation: ${bits.join(" · ")} (${source}).`;
-  }
-
-  function validateIntent(raw){
-    if(!raw || typeof raw !== "object") return null;
-    if(raw.intent !== "search_station") return null;
-    const candidate = {
-      intent:"search_station",
-      mode: raw.mode === "manual" ? "manual" : "gps",
-      fuel: FUELS[raw.fuel] ? raw.fuel : fuel,
-      radiusKm: raw.radiusKm ? nearestRadius(raw.radiusKm) : null,
-      only24: typeof raw.only24 === "boolean" ? raw.only24 : null,
-      sortBy: raw.sortBy === "distance" ? "distance" : "price",
-      commune: typeof raw.commune === "string" ? raw.commune.trim() : "",
-      cp: typeof raw.cp === "string" ? raw.cp.replace(/\D/g, "") : "",
-      needsLocation: !!raw.needsLocation,
-      confidence: Number(raw.confidence) || 0.5,
-      source: raw.source || "gemini"
-    };
-    if(candidate.mode === "manual" && !candidate.commune) return null;
-    return candidate;
-  }
-
-  function parseVoiceQueryLocal(text){
-    const normalized = normalizeText(text);
-    if(!normalized) return {intent:"unsupported", confidence:0, source:"local"};
-
-    const intent = {
-      intent:"search_station",
-      mode:null,
-      fuel:null,
-      radiusKm:null,
-      only24:null,
-      sortBy:null,
-      commune:"",
-      cp:"",
-      needsLocation:false,
-      confidence:0.35,
-      source:"local"
-    };
-
-    if(/\b(carburant|essence|station|stations|gazole|diesel|sp95|sp98|e10|e85|gpl)\b/.test(normalized)) intent.confidence += 0.1;
-    if(/\bmoin?s?\s+ch(?:er|ere|ers|eres|ez)\b|\bmeilleur\s+prix\b|\bpas\s+cher\b|\bprix\s+le\s+plus\s+bas\b/.test(normalized)){
-      intent.sortBy = "price";
-      intent.confidence += 0.25;
-    }
-    if(/\b(autour de moi|pres de moi|proche de moi|chez moi|autour|a cote de moi)\b/.test(normalized)){
-      intent.mode = "gps";
-      intent.needsLocation = true;
-      intent.confidence += 0.3;
-    }
-    const radiusMatch = normalized.match(/\b(\d{1,2})\s?km\b/);
-    if(radiusMatch){
-      intent.radiusKm = nearestRadius(Number(radiusMatch[1]));
-      intent.confidence += 0.1;
-    }
-    if(/\b(24\s?\/\s?24|ouvert|ouverte|ouvertes)\b/.test(normalized)){
-      intent.only24 = true;
-      intent.confidence += 0.08;
+    function setStatus(message, tone) {
+      statusNode.textContent = message;
+      statusNode.className = "status" + (tone ? " " + tone : "");
     }
 
-    const fuelChecks = [
-      [/\b(gazole|diesel)\b/, "gazole"],
-      [/\bsp95\b/, "sp95"],
-      [/\bsp98\b/, "sp98"],
-      [/\be10\b/, "e10"],
-      [/\be85\b/, "e85"],
-      [/\bgpl\b/, "gplc"]
-    ];
-    for(const [matcher, key] of fuelChecks){
-      if(matcher.test(normalized)){
-        intent.fuel = key;
-        intent.confidence += 0.1;
-        break;
-      }
-    }
-    if(!intent.fuel && /\bessence\b/.test(normalized)){
-      intent.fuel = pickGenericFuelFromContext();
-      intent.confidence += 0.05;
+    function formatDate(value) {
+      if (!value) return "date inconnue";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return new Intl.DateTimeFormat("fr-FR", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date);
     }
 
-    const cpMatch = normalized.match(/\b(\d{5})\b/);
-    if(cpMatch) intent.cp = cpMatch[1];
-
-    if(!intent.mode){
-      const manualMatch = normalized.match(/\b(?:a|sur|dans)\s+([a-z][a-z\s'-]{2,})$/);
-      if(manualMatch && !/\bmoi\b/.test(manualMatch[1])){
-        intent.mode = "manual";
-        intent.commune = toTitleCase(manualMatch[1]);
-        intent.sortBy = intent.sortBy || "price";
-        intent.confidence += 0.2;
+    function formatMoney(value, currency) {
+      if (typeof value !== "number") return "prix inconnu";
+      try {
+        return new Intl.NumberFormat("fr-FR", {
+          style: "currency",
+          currency: currency || "EUR",
+          maximumFractionDigits: 2
+        }).format(value);
+      } catch {
+        return value.toFixed(2) + " " + (currency || "");
       }
     }
 
-    if(!intent.mode && intent.sortBy === "price"){
-      intent.mode = "gps";
-      intent.needsLocation = true;
-      intent.confidence += 0.12;
+    function safeText(value, fallback) {
+      return value === null || value === undefined || value === "" ? fallback : String(value);
     }
-    if(!intent.sortBy) intent.sortBy = intent.mode === "gps" ? "distance" : "price";
-    if(!intent.fuel) intent.fuel = fuel;
-    if(!intent.mode) return {intent:"unsupported", confidence:intent.confidence, source:"local"};
-    return intent;
-  }
 
-  function extractJsonObject(text){
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if(start < 0 || end <= start) throw new Error("Réponse JSON introuvable");
-    return JSON.parse(text.slice(start, end + 1));
-  }
+    function formatNumber(value) {
+      return new Intl.NumberFormat("fr-FR", {
+        maximumFractionDigits: 2
+      }).format(value);
+    }
 
-  function geminiConfigured(){
-    return !!(aiSettings.proxyUrl || aiSettings.apiKey);
-  }
+    function normalizeBarcode(value) {
+      return String(value || "").replace(/\D+/g, "").trim();
+    }
 
-  async function parseVoiceQueryWithGemini(text){
-    if(aiSettings.proxyUrl){
-      const response = await fetch(aiSettings.proxyUrl, {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          utterance:text,
-          currentState:{fuel, mode, radiusKm, only24, sortBy}
-        })
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function isSecureContextForCamera() {
+      return window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    }
+
+    function supportsNativeScan() {
+      return "BarcodeDetector" in window && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function";
+    }
+
+    function canUseNativeCameraCapture() {
+      return typeof captureInput.showPicker === "function" || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+
+    function isAndroid() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatDistance(km) {
+      if (km < 1) return Math.round(km * 1000) + " m";
+      return formatNumber(Math.round(km * 10) / 10) + " km";
+    }
+
+    function getUserGeoPosition() {
+      return new Promise(function(resolve, reject) {
+        if (!navigator.geolocation) {
+          reject(new Error("La geolocalisation n'est pas disponible sur ce navigateur."));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+          },
+          function(err) {
+            reject(new Error("Position refusee ou indisponible: " + err.message));
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
       });
-      if(!response.ok) throw new Error(`Proxy HTTP ${response.status}`);
-      const payload = await response.json();
-      const validated = validateIntent(payload.result || payload.intentResult || payload);
-      if(!validated) throw new Error("Réponse proxy invalide");
-      validated.source = "gemini-proxy";
-      return validated;
     }
 
-    const prompt = [
-      "Tu extrais une intention de recherche pour une application française de prix des carburants.",
-      "Retourne uniquement du JSON brut.",
-      "Champs attendus: intent, mode, fuel, radiusKm, only24, sortBy, commune, cp, needsLocation, confidence.",
-      "intent doit valoir search_station ou unsupported.",
-      "mode doit valoir gps ou manual.",
-      "fuel doit valoir gazole, sp95, sp98, e10, e85 ou gplc.",
-      "sortBy doit valoir price ou distance.",
-      "Si l'utilisateur dit seulement essence, choisis e10.",
-      "Si la demande parle d'autour de moi, près de moi, chez moi, mets mode=gps et needsLocation=true.",
-      `Etat courant: fuel=${fuel}, mode=${mode}, radiusKm=${radiusKm}, only24=${only24}, sortBy=${sortBy}.`,
-      `Demande: ${text}`
-    ].join("\n");
+    async function geocodeAddress(query) {
+      const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query);
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        throw new Error("Geocodage impossible (HTTP " + response.status + ")");
+      }
+      const results = await response.json();
+      if (!Array.isArray(results) || results.length === 0) {
+        throw new Error("Adresse introuvable. Essayez un nom de ville ou une adresse plus precise.");
+      }
+      const first = results[0];
+      return {
+        lat: parseFloat(first.lat),
+        lon: parseFloat(first.lon),
+        label: first.display_name.split(",").slice(0, 3).join(",").trim()
+      };
+    }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiSettings.model)}:generateContent?key=${encodeURIComponent(aiSettings.apiKey)}`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        contents:[{parts:[{text:prompt}]}],
-        generationConfig:{temperature:0.1}
-      })
+    function setReferencePosition(lat, lon, label) {
+      userLat = lat;
+      userLon = lon;
+      userLocationLabel = label || (lat.toFixed(4) + ", " + lon.toFixed(4));
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status ok";
+      geoStatus.textContent = "Position de reference: " + userLocationLabel;
+      geoClearButton.hidden = false;
+    }
+
+    function clearReferencePosition() {
+      userLat = null;
+      userLon = null;
+      userLocationLabel = "";
+      geoStatus.hidden = true;
+      geoStatus.className = "geo-status";
+      geoClearButton.hidden = true;
+      geoInput.value = "";
+    }
+
+    function resetScanUi() {
+      scanPanel.classList.remove("active");
+      cameraView.parentElement.classList.remove("tap-focus");
+      refocusButton.hidden = true;
+      stopScanButton.hidden = true;
+      scanButton.disabled = false;
+      cameraView.srcObject = null;
+      focusRing.classList.remove("visible");
+      imageCapture = null;
+      cameraCapabilities = {};
+      focusPointSupported = false;
+    }
+
+    function getVideoTrack() {
+      if (!scanStream) {
+        return null;
+      }
+
+      const tracks = scanStream.getVideoTracks();
+      return tracks.length > 0 ? tracks[0] : null;
+    }
+
+    function showFocusRing(x, y) {
+      focusRing.style.left = x + "px";
+      focusRing.style.top = y + "px";
+      focusRing.classList.add("visible");
+      window.clearTimeout(showFocusRing.timeoutId);
+      showFocusRing.timeoutId = window.setTimeout(function() {
+        focusRing.classList.remove("visible");
+      }, 850);
+    }
+
+    async function readCameraCapabilities(track) {
+      cameraCapabilities = typeof track.getCapabilities === "function" ? track.getCapabilities() : {};
+      focusPointSupported = Boolean(cameraCapabilities.pointsOfInterest);
+
+      if (typeof ImageCapture === "function") {
+        try {
+          imageCapture = new ImageCapture(track);
+        } catch {
+          imageCapture = null;
+        }
+      }
+    }
+
+    async function applyTrackConstraint(track, advancedConstraint) {
+      if (!track || typeof track.applyConstraints !== "function") {
+        return false;
+      }
+
+      try {
+        await track.applyConstraints({ advanced: [advancedConstraint] });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function applyFocusConstraints(track, options) {
+      const settings = options || {};
+      const advancedAttempts = [];
+      const capabilities = cameraCapabilities || {};
+
+      if (settings.point && focusPointSupported) {
+        advancedAttempts.push({ pointsOfInterest: [settings.point] });
+      }
+
+      if (Array.isArray(capabilities.focusMode)) {
+        if (settings.singleShot && capabilities.focusMode.includes("single-shot")) {
+          advancedAttempts.push({
+            focusMode: "single-shot",
+            pointsOfInterest: settings.point && focusPointSupported ? [settings.point] : undefined
+          });
+        }
+
+        if (capabilities.focusMode.includes("continuous")) {
+          advancedAttempts.push({
+            focusMode: "continuous",
+            pointsOfInterest: settings.point && focusPointSupported ? [settings.point] : undefined
+          });
+        }
+
+        if (!settings.singleShot && capabilities.focusMode.includes("single-shot")) {
+          advancedAttempts.push({ focusMode: "single-shot" });
+        }
+      }
+
+      if (capabilities.focusDistance && typeof capabilities.focusDistance.max === "number") {
+        const nearDistance = Math.max(capabilities.focusDistance.min || 0, Math.min(capabilities.focusDistance.max, 0.15));
+        advancedAttempts.push({ focusMode: "manual", focusDistance: nearDistance });
+      }
+
+      if (Array.isArray(capabilities.exposureMode) && capabilities.exposureMode.includes("continuous")) {
+        advancedAttempts.push({ exposureMode: "continuous" });
+      }
+
+      if (Array.isArray(capabilities.whiteBalanceMode) && capabilities.whiteBalanceMode.includes("continuous")) {
+        advancedAttempts.push({ whiteBalanceMode: "continuous" });
+      }
+
+      for (let index = 0; index < advancedAttempts.length; index += 1) {
+        const sanitizedConstraint = {};
+        Object.keys(advancedAttempts[index]).forEach(function(key) {
+          if (advancedAttempts[index][key] !== undefined) {
+            sanitizedConstraint[key] = advancedAttempts[index][key];
+          }
+        });
+
+        const applied = await applyTrackConstraint(track, sanitizedConstraint);
+        if (applied) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    async function configureTrackForScanning(track) {
+      if (!track) {
+        return false;
+      }
+
+      await readCameraCapabilities(track);
+      const focused = await applyFocusConstraints(track, { singleShot: false });
+      cameraView.parentElement.classList.toggle("tap-focus", focusPointSupported);
+      scanHint.textContent = focused
+        ? (focusPointSupported
+          ? "Autofocus continu actif. Touchez l'image pour choisir une zone de mise au point, ou utilisez Relancer la mise au point."
+          : "Autofocus continu actif si le navigateur l'autorise. Si l'image reste floue, utilisez Relancer la mise au point et reculez legerement le telephone.")
+        : "La camera est active. Ce navigateur ouvre bien l'appareil photo, mais n'expose pas completement les commandes de focus web. Essayez Relancer la mise au point et touchez l'image si le pointage est supporte.";
+      return focused;
+    }
+
+    async function forceRefocus(point) {
+      const track = getVideoTrack();
+      if (!track) {
+        return;
+      }
+
+      setStatus("Relance de la mise au point...", "");
+
+      const focused = await applyFocusConstraints(track, {
+        singleShot: true,
+        point: point || null
+      });
+
+      if (!focused) {
+        try {
+          await track.applyConstraints({ advanced: [] });
+        } catch {
+          // no-op
+        }
+      }
+
+      setTimeout(function() {
+        applyFocusConstraints(track, {
+          singleShot: false,
+          point: point || null
+        });
+      }, 250);
+
+      setStatus("Mise au point relancee. Si besoin, reculez legerement le telephone puis revenez vers le code-barres.", focused ? "ok" : "");
+    }
+
+    async function focusAtPoint(clientX, clientY) {
+      const shell = cameraView.parentElement;
+      const rect = shell.getBoundingClientRect();
+      const x = clamp(clientX - rect.left, 0, rect.width);
+      const y = clamp(clientY - rect.top, 0, rect.height);
+      const point = {
+        x: Number((x / rect.width).toFixed(4)),
+        y: Number((y / rect.height).toFixed(4))
+      };
+
+      showFocusRing(x, y);
+      await forceRefocus(point);
+    }
+
+    async function stopScanner() {
+      if (scanIntervalId) {
+        clearInterval(scanIntervalId);
+        scanIntervalId = null;
+      }
+
+      if (scanStream) {
+        scanStream.getTracks().forEach(function(track) {
+          track.stop();
+        });
+        scanStream = null;
+      }
+
+      resetScanUi();
+    }
+
+    function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        const existing = document.querySelector('script[data-src="' + src + '"]');
+        if (existing) {
+          existing.addEventListener("load", function() { resolve(); }, { once: true });
+          existing.addEventListener("error", function() { reject(new Error("Impossible de charger le module externe.")); }, { once: true });
+          if (existing.dataset.loaded === "true") {
+            resolve();
+          }
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.dataset.src = src;
+        script.addEventListener("load", function() {
+          script.dataset.loaded = "true";
+          resolve();
+        }, { once: true });
+        script.addEventListener("error", function() {
+          reject(new Error("Impossible de charger le module externe."));
+        }, { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
+    async function getZxingReader() {
+      if (zxingReader) {
+        return zxingReader;
+      }
+
+      await loadScript("https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js");
+
+      if (!window.ZXing || !window.ZXing.BrowserMultiFormatReader) {
+        throw new Error("Le module ZXing n'est pas disponible.");
+      }
+
+      zxingReader = new window.ZXing.BrowserMultiFormatReader();
+      return zxingReader;
+    }
+
+    function fileToImage(file) {
+      return new Promise(function(resolve, reject) {
+        const imageUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = function() {
+          URL.revokeObjectURL(imageUrl);
+          resolve(image);
+        };
+        image.onerror = function() {
+          URL.revokeObjectURL(imageUrl);
+          reject(new Error("Impossible de lire l'image capturee."));
+        };
+        image.src = imageUrl;
+      });
+    }
+
+    async function detectBarcodeFromImage(file) {
+      const image = await fileToImage(file);
+
+      if ("BarcodeDetector" in window) {
+        try {
+          const detector = new BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
+          });
+          const results = await detector.detect(image);
+          if (Array.isArray(results) && results.length > 0) {
+            return results[0].rawValue || "";
+          }
+        } catch {
+          // fallback ZXing below
+        }
+      }
+
+      const reader = await getZxingReader();
+      const result = await reader.decodeFromImageElement(image);
+      return result && result.text ? result.text : "";
+    }
+
+    async function captureBarcodePhoto() {
+      await stopScanner();
+
+      if (!isSecureContextForCamera()) {
+        setStatus("La capture photo demande une page HTTPS ou localhost.", "error");
+        return;
+      }
+
+      setStatus("Ouverture de l'application photo native du telephone...", "");
+
+      if (typeof captureInput.showPicker === "function") {
+        captureInput.showPicker();
+      } else {
+        captureInput.click();
+      }
+    }
+
+    async function handleCapturedFile() {
+      const file = captureInput.files && captureInput.files[0];
+      if (!file) {
+        setStatus("Capture annulee.", "");
+        return;
+      }
+
+      setStatus("Analyse de la photo du code-barres...", "");
+
+      try {
+        const rawCode = await detectBarcodeFromImage(file);
+        const code = normalizeBarcode(rawCode);
+
+        if (!code) {
+          throw new Error("Aucun code-barres lisible sur la photo.");
+        }
+
+        barcodeInput.value = code;
+        setStatus("Code-barres detecte sur la photo: " + code, "ok");
+        lookupProduct();
+      } catch (error) {
+        setStatus("Echec de lecture du code-barres: " + error.message, "error");
+      } finally {
+        captureInput.value = "";
+      }
+    }
+
+    function openExternalScannerApp() {
+      if (isAndroid()) {
+        const intentUrl = "intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end";
+        setStatus("Tentative d'ouverture d'une app scanner externe...", "");
+        window.location.href = intentUrl;
+        return;
+      }
+
+      setStatus("Aucune ouverture d'app scanner standard n'est disponible sur ce systeme. Utilisez plutot l'appareil photo natif.", "error");
+    }
+
+    async function detectFromCamera() {
+      if (!barcodeDetector || !scanStream || scanBusy || cameraView.readyState < 2) {
+        return;
+      }
+
+      scanBusy = true;
+
+      try {
+        const barcodes = await barcodeDetector.detect(cameraView);
+        if (Array.isArray(barcodes) && barcodes.length > 0) {
+          const rawValue = barcodes[0].rawValue || "";
+          const code = normalizeBarcode(rawValue);
+          if (code) {
+            barcodeInput.value = code;
+            setStatus("Code-barres detecte: " + code, "ok");
+            await stopScanner();
+            lookupProduct();
+          }
+        }
+      } catch (error) {
+        setStatus("Scan indisponible: " + error.message, "error");
+        await stopScanner();
+      } finally {
+        scanBusy = false;
+      }
+    }
+
+    async function startScanner() {
+      if (!isSecureContextForCamera()) {
+        setStatus("Le scan camera demande une page HTTPS ou localhost.", "error");
+        return;
+      }
+
+      if (!supportsNativeScan()) {
+        setStatus("Ce navigateur ne supporte pas le scan natif. Utilisez la saisie manuelle ou un navigateur mobile recent compatible BarcodeDetector.", "error");
+        return;
+      }
+
+      try {
+        if (!barcodeDetector) {
+          barcodeDetector = new BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"]
+          });
+        }
+
+        await stopScanner();
+
+        scanStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: {
+              ideal: "environment"
+            },
+            width: {
+              ideal: 1920
+            },
+            height: {
+              ideal: 1080
+            }
+          }
+        });
+
+        cameraView.srcObject = scanStream;
+        scanPanel.classList.add("active");
+        scanButton.disabled = true;
+        refocusButton.hidden = false;
+        stopScanButton.hidden = false;
+        scanHint.textContent = "Cadrez le code-barres dans la zone. La recherche se lancera automatiquement des qu'il est detecte.";
+        setStatus("Camera active. Recherche du code-barres...", "");
+
+        await cameraView.play();
+        await configureTrackForScanning(getVideoTrack());
+
+        scanIntervalId = window.setInterval(function() {
+          detectFromCamera();
+        }, 450);
+      } catch (error) {
+        await stopScanner();
+        setStatus("Impossible d'activer la camera: " + error.message, "error");
+      }
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        let details = "";
+        try {
+          details = await response.text();
+        } catch {
+          details = "";
+        }
+        throw new Error("HTTP " + response.status + (details ? " - " + details.slice(0, 180) : ""));
+      }
+
+      return response.json();
+    }
+
+    function renderProduct(product) {
+      if (!product) {
+        productPanel.innerHTML = '<div class="placeholder">Produit introuvable dans Open Prices.</div>';
+        return;
+      }
+
+      const imageHtml = product.image_url
+        ? '<img class="product-image" src="' + product.image_url + '" alt="Image produit">'
+        : '<div class="placeholder">Aucune image disponible</div>';
+
+      const facts = [
+        ["Nom", safeText(product.product_name, "non renseigne")],
+        ["Code", safeText(product.code, "inconnu")],
+        ["Marque", safeText(product.brands, "non renseignee")],
+        ["Quantite", safeText(product.quantity || ((product.product_quantity || "") + " " + (product.product_quantity_unit || "")).trim(), "non renseignee")],
+        ["Pays couverts", safeText(product.location_type_osm_country_count, "0")],
+        ["Prix publics", safeText(product.price_count, "0")],
+        ["Lieux", safeText(product.location_count, "0")],
+        ["Derniere synchro", formatDate(product.source_last_synced || product.updated)]
+      ];
+
+      productPanel.innerHTML = [
+        imageHtml,
+        '<div class="facts">',
+        facts.map(function(entry) {
+          return '<div class="fact"><strong>' + entry[0] + '</strong><span>' + entry[1] + '</span></div>';
+        }).join(""),
+        '</div>'
+      ].join("");
+    }
+
+    function renderComparison(items, mode) {
+      if (mode !== "product") {
+        comparisonSummary.innerHTML = [
+          '<div class="summary-card"><strong>Mode</strong><span>Flux mondial</span></div>',
+          '<div class="summary-card"><strong>Source</strong><span>Open Prices</span></div>',
+          '<div class="summary-card"><strong>Usage</strong><span>Rechercher un code-barres pour comparer ses prix</span></div>'
+        ].join("");
+        return;
+      }
+
+      const validItems = (items || []).filter(function(item) {
+        return typeof item.price === "number";
+      });
+
+      if (validItems.length === 0) {
+        comparisonSummary.innerHTML = '<div class="summary-card"><strong>Comparaison</strong><span>Aucun prix public comparable pour ce code-barres</span></div>';
+        return;
+      }
+
+      const prices = validItems.map(function(item) {
+        return item.price;
+      });
+      const min = Math.min.apply(null, prices);
+      const max = Math.max.apply(null, prices);
+      const average = prices.reduce(function(sum, price) {
+        return sum + price;
+      }, 0) / prices.length;
+      const spread = max - min;
+      const currency = validItems[0].currency || (validItems[0].proof && validItems[0].proof.currency) || "EUR";
+      const stores = new Set(validItems.map(function(item) {
+        const location = item.location || {};
+        return safeText(location.osm_brand || location.osm_name || location.osm_display_name, "Magasin inconnu");
+      }));
+      const countries = new Set(validItems.map(function(item) {
+        const location = item.location || {};
+        return safeText(location.osm_address_country_code || location.osm_address_country, "?");
+      }));
+
+      const cards = [
+        '<div class="summary-card"><strong>Prix minimum</strong><span>' + formatMoney(min, currency) + '</span></div>',
+        '<div class="summary-card"><strong>Prix moyen</strong><span>' + formatMoney(average, currency) + '</span></div>',
+        '<div class="summary-card"><strong>Prix maximum</strong><span>' + formatMoney(max, currency) + '</span></div>',
+        '<div class="summary-card"><strong>Ecart observe</strong><span>' + formatMoney(spread, currency) + '</span></div>',
+        '<div class="summary-card"><strong>Magasins compares</strong><span>' + formatNumber(stores.size) + '</span></div>',
+        '<div class="summary-card"><strong>Pays couverts</strong><span>' + formatNumber(countries.size) + '</span></div>'
+      ];
+
+      if (userLat !== null && userLon !== null) {
+        const cheapestItem = validItems.reduce(function(a, b) {
+          return a.price <= b.price ? a : b;
+        });
+        const cheapestLoc = cheapestItem.location || {};
+        const cheapestDist = (typeof cheapestLoc.osm_lat === "number" && typeof cheapestLoc.osm_lon === "number")
+          ? haversineDistance(userLat, userLon, cheapestLoc.osm_lat, cheapestLoc.osm_lon)
+          : null;
+        const cheapestStore = safeText(cheapestLoc.osm_name || cheapestLoc.osm_display_name, "Magasin inconnu");
+        const cheapestCity = safeText(cheapestLoc.osm_address_city, "");
+        const cheapestDistText = cheapestDist !== null ? " · " + formatDistance(cheapestDist) + " de vous" : "";
+
+        cards.push(
+          '<div class="cheapest-near"><strong>Moins cher (tous magasins)</strong>' +
+          '<span>' + formatMoney(cheapestItem.price, cheapestItem.currency || currency) + '</span>' +
+          '<p>' + cheapestStore + (cheapestCity ? ", " + cheapestCity : "") + cheapestDistText + '</p></div>'
+        );
+
+        const nearbyItems = validItems
+          .filter(function(item) {
+            const loc = item.location || {};
+            return typeof loc.osm_lat === "number" && typeof loc.osm_lon === "number";
+          })
+          .map(function(item) {
+            const loc = item.location || {};
+            return { item: item, dist: haversineDistance(userLat, userLon, loc.osm_lat, loc.osm_lon) };
+          })
+          .filter(function(wd) { return wd.dist <= 50; })
+          .sort(function(a, b) { return a.item.price - b.item.price; });
+
+        if (nearbyItems.length > 0) {
+          const best = nearbyItems[0];
+          const bestLoc = best.item.location || {};
+          const bestStore = safeText(bestLoc.osm_name || bestLoc.osm_display_name, "Magasin inconnu");
+          const bestCity = safeText(bestLoc.osm_address_city, "");
+          cards.push(
+            '<div class="cheapest-near"><strong>Moins cher a moins de 50 km</strong>' +
+            '<span>' + formatMoney(best.item.price, best.item.currency || currency) + '</span>' +
+            '<p>' + bestStore + (bestCity ? ", " + bestCity : "") + ' · ' + formatDistance(best.dist) + ' de vous</p></div>'
+          );
+        } else {
+          cards.push(
+            '<div class="cheapest-near"><strong>Moins cher a moins de 50 km</strong>' +
+            '<span>Aucun magasin repertorie dans ce rayon</span>' +
+            '<p>Elargissez la zone ou verifiez votre position de reference.</p></div>'
+          );
+        }
+      }
+
+      comparisonSummary.innerHTML = cards.join("");
+    }
+
+    function renderPrices(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        priceList.innerHTML = '<div class="placeholder">Aucun prix public trouve pour cette requete.</div>';
+        return;
+      }
+
+      const sorted = items.slice().sort(function(a, b) {
+        if (typeof a.price !== "number") return 1;
+        if (typeof b.price !== "number") return -1;
+        return a.price - b.price;
+      });
+
+      priceList.innerHTML = sorted.map(function(item) {
+        const product = item.product || {};
+        const location = item.location || {};
+        const proof = item.proof || {};
+        const title = safeText(item.product_name || product.product_name, "Produit sans nom");
+        const brand = safeText(product.brands, "marque inconnue");
+        const place = safeText(location.osm_display_name || location.osm_name, "lieu inconnu");
+        const country = safeText(location.osm_address_country, "pays inconnu");
+        const dateValue = proof.date || item.created || item.updated;
+        const currency = proof.currency || item.currency || "EUR";
+        const quantity = safeText(product.quantity, "quantite non renseignee");
+        const code = safeText(item.product_code || product.code, "code inconnu");
+        const store = safeText(location.osm_brand || location.osm_name, "magasin inconnu");
+
+        let distBadge = "";
+        let mapLink = "";
+        if (typeof location.osm_lat === "number" && typeof location.osm_lon === "number") {
+          if (userLat !== null && userLon !== null) {
+            const dist = haversineDistance(userLat, userLon, location.osm_lat, location.osm_lon);
+            distBadge = ' <span class="distance-badge">' + formatDistance(dist) + '</span>';
+          }
+          mapLink = ' <a href="https://www.openstreetmap.org/?mlat=' + location.osm_lat + '&mlon=' + location.osm_lon + '#map=16/' + location.osm_lat + '/' + location.osm_lon + '" target="_blank" rel="noopener" style="font-size:0.85rem;color:var(--muted)">carte</a>';
+        }
+
+        return [
+          '<article class="price-item">',
+          '<div>',
+          '<h3>' + title + '</h3>',
+          '<p><strong>Magasin:</strong> ' + store + distBadge + mapLink + '</p>',
+          '<p><strong>Marque:</strong> ' + brand + '</p>',
+          '<p><strong>Code:</strong> ' + code + '</p>',
+          '<p><strong>Quantite:</strong> ' + quantity + '</p>',
+          '<p><strong>Lieu:</strong> ' + place + '</p>',
+          '<p><strong>Pays:</strong> ' + country + '</p>',
+          '<p><strong>Date relevee:</strong> ' + formatDate(dateValue) + '</p>',
+          '</div>',
+          '<div class="pill">' + formatMoney(item.price, currency) + '</div>',
+          '</article>'
+        ].join('');
+      }).join('');
+    }
+
+    async function loadRecentPrices() {
+      setStatus("Chargement du flux mondial Open Prices...", "");
+      feedTitle.textContent = "Prix recents dans le monde";
+      feedSubtitle.textContent = "Dernieres remontees publiques issues de l'API Open Prices";
+
+      try {
+        const data = await fetchJson(API_BASE + "/prices?page_size=" + RECENT_PAGE_SIZE);
+        renderComparison(data.items || [], "recent");
+        renderPrices(data.items || []);
+        setStatus("Flux public charge.", "ok");
+      } catch (error) {
+        renderComparison([], "recent");
+        renderPrices([]);
+        setStatus("Echec de communication avec Open Prices: " + error.message, "error");
+      }
+    }
+
+    async function lookupProduct() {
+      const code = normalizeBarcode(barcodeInput.value);
+
+      if (!code) {
+        setStatus("Saisissez un code-barres numerique.", "error");
+        barcodeInput.focus();
+        return;
+      }
+
+      setStatus("Recherche du produit et de ses prix Open Prices...", "");
+      feedTitle.textContent = "Prix du produit";
+      feedSubtitle.textContent = "Code-barres: " + code;
+
+      try {
+        const product = await fetchJson(API_BASE + "/products/code/" + encodeURIComponent(code));
+        renderProduct(product);
+
+        const prices = await fetchJson(API_BASE + "/prices?product_code=" + encodeURIComponent(code) + "&page_size=" + PRODUCT_PAGE_SIZE);
+        renderComparison(prices.items || [], "product");
+        renderPrices(prices.items || []);
+        setStatus("Produit et prix charges.", "ok");
+      } catch (error) {
+        renderProduct(null);
+        renderComparison([], "product");
+        renderPrices([]);
+        setStatus("Impossible de recuperer ce produit via Open Prices: " + error.message, "error");
+      }
+    }
+
+    searchButton.addEventListener("click", lookupProduct);
+    refreshButton.addEventListener("click", loadRecentPrices);
+    scanButton.addEventListener("click", startScanner);
+    captureButton.addEventListener("click", captureBarcodePhoto);
+    externalScannerButton.addEventListener("click", openExternalScannerApp);
+    captureInput.addEventListener("change", handleCapturedFile);
+    refocusButton.addEventListener("click", forceRefocus);
+    stopScanButton.addEventListener("click", stopScanner);
+    barcodeInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        lookupProduct();
+      }
     });
-    if(!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
-    const payload = await response.json();
-    const rawText = (payload.candidates || [])
-      .flatMap(candidate => ((candidate.content || {}).parts || []).map(part => part.text || ""))
-      .join("\n");
-    const validated = validateIntent(extractJsonObject(rawText));
-    if(!validated) throw new Error("Réponse Gemini invalide");
-    validated.source = "gemini-direct";
-    return validated;
-  }
 
-  async function resolveVoiceIntent(text){
-    const local = parseVoiceQueryLocal(text);
-    if(local.intent === "search_station" && local.confidence >= 0.78) return local;
-    if(!geminiConfigured()) return local;
-    try{
-      return await parseVoiceQueryWithGemini(text);
-    }catch(error){
-      setVoiceMeta(`Gemini indisponible, repli local. (${error.message})`, true);
-      return local;
+    cameraView.addEventListener("click", function(event) {
+      if (focusPointSupported) {
+        focusAtPoint(event.clientX, event.clientY);
+      } else {
+        forceRefocus();
+      }
+    });
+
+    cameraView.addEventListener("touchend", function(event) {
+      if (!focusPointSupported || !event.changedTouches || event.changedTouches.length === 0) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      focusAtPoint(touch.clientX, touch.clientY);
+    });
+
+    window.addEventListener("pagehide", function() {
+      stopScanner();
+    });
+
+    geoButton.addEventListener("click", async function() {
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status";
+      geoStatus.textContent = "Obtention de votre position GPS...";
+      geoButton.disabled = true;
+      try {
+        const pos = await getUserGeoPosition();
+        setReferencePosition(pos.lat, pos.lon, pos.lat.toFixed(4) + ", " + pos.lon.toFixed(4));
+        try {
+          const rev = await fetch(
+            "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + pos.lat + "&lon=" + pos.lon,
+            { headers: { Accept: "application/json" } }
+          );
+          if (rev.ok) {
+            const rdata = await rev.json();
+            const addr = rdata.address || {};
+            const city = addr.city || addr.town || addr.village || addr.county || "";
+            const country = addr.country || "";
+            const cityLabel = city + (country ? ", " + country : "");
+            if (cityLabel.trim()) setReferencePosition(pos.lat, pos.lon, cityLabel.trim());
+          }
+        } catch { /* keep coordinate label */ }
+      } catch (err) {
+        geoStatus.hidden = false;
+        geoStatus.className = "geo-status error";
+        geoStatus.textContent = "Geolocalisation echouee: " + err.message;
+      } finally {
+        geoButton.disabled = false;
+      }
+    });
+
+    geoSearchButton.addEventListener("click", async function() {
+      const query = geoInput.value.trim();
+      if (!query) { geoInput.focus(); return; }
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status";
+      geoStatus.textContent = "Recherche de l'adresse...";
+      geoSearchButton.disabled = true;
+      try {
+        const result = await geocodeAddress(query);
+        setReferencePosition(result.lat, result.lon, result.label);
+      } catch (err) {
+        geoStatus.hidden = false;
+        geoStatus.className = "geo-status error";
+        geoStatus.textContent = err.message;
+      } finally {
+        geoSearchButton.disabled = false;
+      }
+    });
+
+    geoInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") geoSearchButton.click();
+    });
+
+    geoClearButton.addEventListener("click", clearReferencePosition);
+
+    renderProduct(null);
+    renderComparison([], "recent");
+    if (!canUseNativeCameraCapture()) {
+      captureButton.textContent = "Choisir ou photographier un code-barres";
     }
-  }
-
-  function applyVoiceIntent(intent){
-    if(intent.fuel && FUELS[intent.fuel]) fuel = intent.fuel;
-    if(intent.radiusKm) radiusKm = nearestRadius(intent.radiusKm);
-    if(typeof intent.only24 === "boolean") only24 = intent.only24;
-    if(intent.sortBy) sortBy = intent.sortBy;
-    syncFuelChips();
-    syncRadiusChips();
-    syncSortChips();
-    syncFilterChip();
-
-    if(intent.mode === "manual" && intent.commune){
-      communeInput.value = intent.commune;
-      cpInput.value = intent.cp || cpInput.value;
-      setMode("manual");
-    }else{
-      setMode("gps");
+    if (!isAndroid()) {
+      externalScannerButton.hidden = true;
     }
-
-    setVoiceMeta(describeIntent(intent), false);
-    voiceSearchPending = true;
-    if(mode === "gps") searchGps();
-    else searchManual();
-  }
-
-  function setListeningState(listening){
-    isListening = listening;
-    voiceBtn.classList.toggle("listening", listening);
-    voiceBtn.textContent = listening ? "Écoute…" : "Parler";
-  }
-
-  function ensureRecognition(){
-    if(!SpeechRecognition) return null;
-    if(recognition) return recognition;
-    recognition = new SpeechRecognition();
-    recognition.lang = "fr-FR";
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => {
-      setListeningState(true);
-      setVoiceMeta("Écoute en cours…", false);
-    };
-    recognition.onend = () => setListeningState(false);
-    recognition.onerror = event => {
-      const message = event.error === "not-allowed"
-        ? "Micro refusé. Autorise l'accès au micro pour la recherche vocale."
-        : "Écoute impossible pour le moment.";
-      setVoiceMeta(message, true);
-      setListeningState(false);
-    };
-    recognition.onresult = event => {
-      const transcript = [...event.results].map(result => result[0].transcript).join(" ").trim();
-      voiceInput.value = transcript;
-      handleVoiceQuery(transcript);
-    };
-    return recognition;
-  }
-
-  async function handleVoiceQuery(forcedText){
-    const text = String(forcedText || voiceInput.value || "").trim();
-    if(!text){
-      setVoiceMeta("Dicte ou saisis une demande naturelle.", true);
-      return;
-    }
-    setVoiceMeta("Analyse de la demande…", false);
-    const intent = await resolveVoiceIntent(text);
-    if(!intent || intent.intent !== "search_station"){
-      setVoiceMeta("Demande non reconnue. Essaie par exemple: quelle est la station la moins chère autour de moi ?", true);
-      return;
-    }
-    applyVoiceIntent(intent);
-  }
-
-  goBtn.onclick = () => mode === "gps" ? searchGps() : searchManual();
-  voiceGoBtn.onclick = () => handleVoiceQuery();
-  voiceBtn.onclick = () => {
-    const engine = ensureRecognition();
-    if(!engine){
-      setVoiceMeta("Ce navigateur ne prend pas en charge la dictée Web Speech. Utilise le champ texte ou Gemini via Android Auto/Assistant.", true);
-      return;
-    }
-    if(isListening){
-      engine.stop();
-      return;
-    }
-    engine.start();
-  };
-
-  document.addEventListener("keydown", event => {
-    if(event.key === "Enter" && document.activeElement === voiceInput){
-      handleVoiceQuery();
-      return;
-    }
-    if(event.key === "Enter" && mode === "manual" && document.activeElement !== voiceInput) searchManual();
-  });
-
-  communeInput.addEventListener("input", remember);
-  cpInput.addEventListener("input", remember);
-  voiceInput.addEventListener("input", () => setVoiceMeta("", false));
-
-  geminiProxyUrlInput.value = aiSettings.proxyUrl;
-  geminiModelInput.value = aiSettings.model;
-  geminiApiKeyInput.value = aiSettings.apiKey;
-  geminiProxyUrlInput.addEventListener("input", event => {
-    aiSettings.proxyUrl = event.target.value.trim();
-    rememberAi();
-    refreshAssistantState();
-  });
-  geminiModelInput.addEventListener("input", event => {
-    aiSettings.model = event.target.value.trim() || "gemini-2.5-flash-lite";
-    rememberAi();
-    refreshAssistantState();
-  });
-  geminiApiKeyInput.addEventListener("input", event => {
-    aiSettings.apiKey = event.target.value.trim();
-    rememberAi();
-    refreshAssistantState();
-  });
-
-  const navbg = document.getElementById("navbg");
-  const navsheet = document.getElementById("navsheet");
-  function openSheet(){ navbg.classList.add("show"); navsheet.classList.add("show"); }
-  function closeSheet(){ navbg.classList.remove("show"); navsheet.classList.remove("show"); }
-  document.addEventListener("click", event => {
-    const actionLink = event.target.closest("a.act");
-    if(!actionLink) return;
-    event.preventDefault();
-    const urls = navUrls(actionLink.dataset.lat, actionLink.dataset.lon, actionLink.dataset.q || "");
-    document.getElementById("nav-waze").href = urls.waze;
-    document.getElementById("nav-gmaps").href = urls.gmaps;
-    document.getElementById("nav-apple").href = urls.apple;
-    openSheet();
-  });
-  navbg.onclick = closeSheet;
-  document.getElementById("nav-cancel").onclick = event => {
-    event.preventDefault();
-    closeSheet();
-  };
-  ["nav-waze", "nav-gmaps", "nav-apple"].forEach(id => {
-    document.getElementById(id).addEventListener("click", () => setTimeout(closeSheet, 100));
-  });
-
-  onboardingConfirm.addEventListener("click", event => {
-    event.preventDefault();
-    closeOnboarding();
-  });
-  onboardingBg.addEventListener("click", closeOnboarding);
-
-  if(mem.commune) communeInput.value = mem.commune;
-  if(mem.cp) cpInput.value = mem.cp;
-  syncFuelChips();
-  syncRadiusChips();
-  syncSortChips();
-  syncFilterChip();
-  setMode(mode);
-  refreshAssistantState();
-  setVoiceMeta("Prêt pour une demande naturelle ou vocale.", false);
-
-  if(!mem.hasShownOnboarding){
-    showOnboarding();
-    mem.hasShownOnboarding = true;
-    try{ localStorage.setItem(MEM, JSON.stringify({...mem, hasShownOnboarding: true})); }catch(e){}
-  }
-
-  const themeBtn = document.getElementById("theme");
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  function applyTheme(theme){
-    document.documentElement.setAttribute("data-theme", theme);
-    themeBtn.textContent = theme === "light" ? "☾" : "☀";
-    if(metaTheme) metaTheme.setAttribute("content", theme === "light" ? "#F4F6F8" : "#0F1C25");
-    try{ localStorage.setItem("carbu_theme", theme); }catch(e){}
-  }
-  const savedTheme = (() => {
-    try{ return localStorage.getItem("carbu_theme"); }
-    catch(e){ return null; }
-  })();
-  applyTheme(savedTheme || (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
-  themeBtn.onclick = () => applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
-</script>
+    scannerNote.textContent = isAndroid()
+      ? "Mode recommande: ouvrir l'appareil photo natif. Si le focus web reste mauvais, utilisez l'appareil photo natif ou l'app scanner externe Android."
+      : "Mode recommande: ouvrir l'appareil photo natif. Le scan dans la page reste possible, mais la mise au point depend fortement du navigateur et du webview utilise.";
+    loadRecentPrices();
+  </script>
 </body>
 </html>

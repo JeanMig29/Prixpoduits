@@ -100,6 +100,14 @@
       align-items: center;
     }
 
+    .scanner-note {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+      max-width: 68ch;
+    }
+
     .field,
     .button {
       min-height: 52px;
@@ -476,11 +484,16 @@
       </div>
 
       <div class="scan-tools">
-        <button id="scanButton" class="button" type="button">Scanner sur mobile</button>
-        <button id="captureButton" class="button primary" type="button">Prendre une photo du code-barres</button>
+        <button id="captureButton" class="button primary" type="button">Ouvrir l'appareil photo natif</button>
+        <button id="scanButton" class="button" type="button">Scanner dans la page</button>
+        <button id="externalScannerButton" class="button" type="button">Ouvrir une app scanner</button>
         <button id="refocusButton" class="button" type="button" hidden>Relancer la mise au point</button>
         <button id="stopScanButton" class="button" type="button" hidden>Arreter le scan</button>
       </div>
+
+      <p id="scannerNote" class="scanner-note">
+        Mode recommande: l'appareil photo natif du telephone. Le scan dans la page reste disponible, mais la mise au point web depend fortement du navigateur et du webview utilise.
+      </p>
 
       <input id="captureInput" type="file" accept="image/*" capture="environment" hidden>
 
@@ -539,6 +552,7 @@
     const comparisonSummary = document.getElementById("comparisonSummary");
     const scanButton = document.getElementById("scanButton");
     const captureButton = document.getElementById("captureButton");
+    const externalScannerButton = document.getElementById("externalScannerButton");
     const captureInput = document.getElementById("captureInput");
     const refocusButton = document.getElementById("refocusButton");
     const stopScanButton = document.getElementById("stopScanButton");
@@ -546,6 +560,7 @@
     const scanHint = document.getElementById("scanHint");
     const cameraView = document.getElementById("cameraView");
     const focusRing = document.getElementById("focusRing");
+    const scannerNote = document.getElementById("scannerNote");
 
     let scanStream = null;
     let scanIntervalId = null;
@@ -612,6 +627,10 @@
 
     function canUseNativeCameraCapture() {
       return typeof captureInput.showPicker === "function" || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+
+    function isAndroid() {
+      return /Android/i.test(navigator.userAgent);
     }
 
     function resetScanUi() {
@@ -896,7 +915,7 @@
         return;
       }
 
-      setStatus("Ouverture de l'application photo du telephone...", "");
+      setStatus("Ouverture de l'application photo native du telephone...", "");
 
       if (typeof captureInput.showPicker === "function") {
         captureInput.showPicker();
@@ -930,6 +949,17 @@
       } finally {
         captureInput.value = "";
       }
+    }
+
+    function openExternalScannerApp() {
+      if (isAndroid()) {
+        const intentUrl = "intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end";
+        setStatus("Tentative d'ouverture d'une app scanner externe...", "");
+        window.location.href = intentUrl;
+        return;
+      }
+
+      setStatus("Aucune ouverture d'app scanner standard n'est disponible sur ce systeme. Utilisez plutot l'appareil photo natif.", "error");
     }
 
     async function detectFromCamera() {
@@ -1201,6 +1231,7 @@
     refreshButton.addEventListener("click", loadRecentPrices);
     scanButton.addEventListener("click", startScanner);
     captureButton.addEventListener("click", captureBarcodePhoto);
+    externalScannerButton.addEventListener("click", openExternalScannerApp);
     captureInput.addEventListener("change", handleCapturedFile);
     refocusButton.addEventListener("click", forceRefocus);
     stopScanButton.addEventListener("click", stopScanner);
@@ -1236,6 +1267,12 @@
     if (!canUseNativeCameraCapture()) {
       captureButton.textContent = "Choisir ou photographier un code-barres";
     }
+    if (!isAndroid()) {
+      externalScannerButton.hidden = true;
+    }
+    scannerNote.textContent = isAndroid()
+      ? "Mode recommande: ouvrir l'appareil photo natif. Si le focus web reste mauvais, utilisez l'appareil photo natif ou l'app scanner externe Android."
+      : "Mode recommande: ouvrir l'appareil photo natif. Le scan dans la page reste possible, mais la mise au point depend fortement du navigateur et du webview utilise.";
     loadRecentPrices();
   </script>
 </body>

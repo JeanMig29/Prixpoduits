@@ -108,6 +108,71 @@
       max-width: 68ch;
     }
 
+    .geo-bar {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .geo-bar .field {
+      flex: 1 1 180px;
+      min-width: 130px;
+      width: auto;
+    }
+
+    .geo-status {
+      margin: 6px 0 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .geo-status.ok {
+      color: var(--ok);
+    }
+
+    .geo-status.error {
+      color: #8f1d1d;
+    }
+
+    .distance-badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      background: rgba(22, 91, 51, 0.1);
+      color: var(--ok);
+      border: 1px solid rgba(22, 91, 51, 0.2);
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+
+    .cheapest-near {
+      grid-column: 1 / -1;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(22, 91, 51, 0.07);
+      border: 1px solid rgba(22, 91, 51, 0.2);
+    }
+
+    .cheapest-near strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.84rem;
+      color: var(--ok);
+    }
+
+    .cheapest-near span {
+      font-size: 1.05rem;
+    }
+
+    .cheapest-near p {
+      margin: 4px 0 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
     .field,
     .button {
       min-height: 52px;
@@ -443,7 +508,8 @@
         grid-template-columns: 1fr;
       }
 
-      .scan-tools {
+      .scan-tools,
+      .geo-bar {
         flex-direction: column;
         align-items: stretch;
       }
@@ -482,6 +548,14 @@
         <button id="searchButton" class="button primary" type="button">Rechercher un produit</button>
         <button id="refreshButton" class="button" type="button">Flux mondial recent</button>
       </div>
+
+      <div class="geo-bar">
+        <button id="geoButton" class="button" type="button">Localisation GPS</button>
+        <input id="geoInput" class="field" type="text" placeholder="Ou saisissez une ville ou adresse...">
+        <button id="geoSearchButton" class="button" type="button">Valider</button>
+        <button id="geoClearButton" class="button" type="button" hidden>Effacer</button>
+      </div>
+      <p id="geoStatus" class="geo-status" hidden></p>
 
       <div class="scan-tools">
         <button id="captureButton" class="button primary" type="button">Ouvrir l'appareil photo natif</button>
@@ -561,6 +635,11 @@
     const cameraView = document.getElementById("cameraView");
     const focusRing = document.getElementById("focusRing");
     const scannerNote = document.getElementById("scannerNote");
+    const geoButton = document.getElementById("geoButton");
+    const geoInput = document.getElementById("geoInput");
+    const geoSearchButton = document.getElementById("geoSearchButton");
+    const geoClearButton = document.getElementById("geoClearButton");
+    const geoStatus = document.getElementById("geoStatus");
 
     let scanStream = null;
     let scanIntervalId = null;
@@ -570,6 +649,9 @@
     let cameraCapabilities = {};
     let focusPointSupported = false;
     let zxingReader = null;
+    let userLat = null;
+    let userLon = null;
+    let userLocationLabel = "";
 
     function setStatus(message, tone) {
       statusNode.textContent = message;
@@ -631,6 +713,77 @@
 
     function isAndroid() {
       return /Android/i.test(navigator.userAgent);
+    }
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatDistance(km) {
+      if (km < 1) return Math.round(km * 1000) + " m";
+      return formatNumber(Math.round(km * 10) / 10) + " km";
+    }
+
+    function getUserGeoPosition() {
+      return new Promise(function(resolve, reject) {
+        if (!navigator.geolocation) {
+          reject(new Error("La geolocalisation n'est pas disponible sur ce navigateur."));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+          },
+          function(err) {
+            reject(new Error("Position refusee ou indisponible: " + err.message));
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }
+
+    async function geocodeAddress(query) {
+      const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query);
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        throw new Error("Geocodage impossible (HTTP " + response.status + ")");
+      }
+      const results = await response.json();
+      if (!Array.isArray(results) || results.length === 0) {
+        throw new Error("Adresse introuvable. Essayez un nom de ville ou une adresse plus precise.");
+      }
+      const first = results[0];
+      return {
+        lat: parseFloat(first.lat),
+        lon: parseFloat(first.lon),
+        label: first.display_name.split(",").slice(0, 3).join(",").trim()
+      };
+    }
+
+    function setReferencePosition(lat, lon, label) {
+      userLat = lat;
+      userLon = lon;
+      userLocationLabel = label || (lat.toFixed(4) + ", " + lon.toFixed(4));
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status ok";
+      geoStatus.textContent = "Position de reference: " + userLocationLabel;
+      geoClearButton.hidden = false;
+    }
+
+    function clearReferencePosition() {
+      userLat = null;
+      userLon = null;
+      userLocationLabel = "";
+      geoStatus.hidden = true;
+      geoStatus.className = "geo-status";
+      geoClearButton.hidden = true;
+      geoInput.value = "";
     }
 
     function resetScanUi() {
@@ -1133,14 +1286,65 @@
         return safeText(location.osm_address_country_code || location.osm_address_country, "?");
       }));
 
-      comparisonSummary.innerHTML = [
+      const cards = [
         '<div class="summary-card"><strong>Prix minimum</strong><span>' + formatMoney(min, currency) + '</span></div>',
         '<div class="summary-card"><strong>Prix moyen</strong><span>' + formatMoney(average, currency) + '</span></div>',
         '<div class="summary-card"><strong>Prix maximum</strong><span>' + formatMoney(max, currency) + '</span></div>',
         '<div class="summary-card"><strong>Ecart observe</strong><span>' + formatMoney(spread, currency) + '</span></div>',
         '<div class="summary-card"><strong>Magasins compares</strong><span>' + formatNumber(stores.size) + '</span></div>',
         '<div class="summary-card"><strong>Pays couverts</strong><span>' + formatNumber(countries.size) + '</span></div>'
-      ].join("");
+      ];
+
+      if (userLat !== null && userLon !== null) {
+        const cheapestItem = validItems.reduce(function(a, b) {
+          return a.price <= b.price ? a : b;
+        });
+        const cheapestLoc = cheapestItem.location || {};
+        const cheapestDist = (typeof cheapestLoc.osm_lat === "number" && typeof cheapestLoc.osm_lon === "number")
+          ? haversineDistance(userLat, userLon, cheapestLoc.osm_lat, cheapestLoc.osm_lon)
+          : null;
+        const cheapestStore = safeText(cheapestLoc.osm_name || cheapestLoc.osm_display_name, "Magasin inconnu");
+        const cheapestCity = safeText(cheapestLoc.osm_address_city, "");
+        const cheapestDistText = cheapestDist !== null ? " · " + formatDistance(cheapestDist) + " de vous" : "";
+
+        cards.push(
+          '<div class="cheapest-near"><strong>Moins cher (tous magasins)</strong>' +
+          '<span>' + formatMoney(cheapestItem.price, cheapestItem.currency || currency) + '</span>' +
+          '<p>' + cheapestStore + (cheapestCity ? ", " + cheapestCity : "") + cheapestDistText + '</p></div>'
+        );
+
+        const nearbyItems = validItems
+          .filter(function(item) {
+            const loc = item.location || {};
+            return typeof loc.osm_lat === "number" && typeof loc.osm_lon === "number";
+          })
+          .map(function(item) {
+            const loc = item.location || {};
+            return { item: item, dist: haversineDistance(userLat, userLon, loc.osm_lat, loc.osm_lon) };
+          })
+          .filter(function(wd) { return wd.dist <= 50; })
+          .sort(function(a, b) { return a.item.price - b.item.price; });
+
+        if (nearbyItems.length > 0) {
+          const best = nearbyItems[0];
+          const bestLoc = best.item.location || {};
+          const bestStore = safeText(bestLoc.osm_name || bestLoc.osm_display_name, "Magasin inconnu");
+          const bestCity = safeText(bestLoc.osm_address_city, "");
+          cards.push(
+            '<div class="cheapest-near"><strong>Moins cher a moins de 50 km</strong>' +
+            '<span>' + formatMoney(best.item.price, best.item.currency || currency) + '</span>' +
+            '<p>' + bestStore + (bestCity ? ", " + bestCity : "") + ' · ' + formatDistance(best.dist) + ' de vous</p></div>'
+          );
+        } else {
+          cards.push(
+            '<div class="cheapest-near"><strong>Moins cher a moins de 50 km</strong>' +
+            '<span>Aucun magasin repertorie dans ce rayon</span>' +
+            '<p>Elargissez la zone ou verifiez votre position de reference.</p></div>'
+          );
+        }
+      }
+
+      comparisonSummary.innerHTML = cards.join("");
     }
 
     function renderPrices(items) {
@@ -1149,7 +1353,13 @@
         return;
       }
 
-      priceList.innerHTML = items.map(function(item) {
+      const sorted = items.slice().sort(function(a, b) {
+        if (typeof a.price !== "number") return 1;
+        if (typeof b.price !== "number") return -1;
+        return a.price - b.price;
+      });
+
+      priceList.innerHTML = sorted.map(function(item) {
         const product = item.product || {};
         const location = item.location || {};
         const proof = item.proof || {};
@@ -1163,11 +1373,21 @@
         const code = safeText(item.product_code || product.code, "code inconnu");
         const store = safeText(location.osm_brand || location.osm_name, "magasin inconnu");
 
+        let distBadge = "";
+        let mapLink = "";
+        if (typeof location.osm_lat === "number" && typeof location.osm_lon === "number") {
+          if (userLat !== null && userLon !== null) {
+            const dist = haversineDistance(userLat, userLon, location.osm_lat, location.osm_lon);
+            distBadge = ' <span class="distance-badge">' + formatDistance(dist) + '</span>';
+          }
+          mapLink = ' <a href="https://www.openstreetmap.org/?mlat=' + location.osm_lat + '&mlon=' + location.osm_lon + '#map=16/' + location.osm_lat + '/' + location.osm_lon + '" target="_blank" rel="noopener" style="font-size:0.85rem;color:var(--muted)">carte</a>';
+        }
+
         return [
           '<article class="price-item">',
           '<div>',
           '<h3>' + title + '</h3>',
-          '<p><strong>Magasin:</strong> ' + store + '</p>',
+          '<p><strong>Magasin:</strong> ' + store + distBadge + mapLink + '</p>',
           '<p><strong>Marque:</strong> ' + brand + '</p>',
           '<p><strong>Code:</strong> ' + code + '</p>',
           '<p><strong>Quantite:</strong> ' + quantity + '</p>',
@@ -1261,6 +1481,62 @@
     window.addEventListener("pagehide", function() {
       stopScanner();
     });
+
+    geoButton.addEventListener("click", async function() {
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status";
+      geoStatus.textContent = "Obtention de votre position GPS...";
+      geoButton.disabled = true;
+      try {
+        const pos = await getUserGeoPosition();
+        setReferencePosition(pos.lat, pos.lon, pos.lat.toFixed(4) + ", " + pos.lon.toFixed(4));
+        try {
+          const rev = await fetch(
+            "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + pos.lat + "&lon=" + pos.lon,
+            { headers: { Accept: "application/json" } }
+          );
+          if (rev.ok) {
+            const rdata = await rev.json();
+            const addr = rdata.address || {};
+            const city = addr.city || addr.town || addr.village || addr.county || "";
+            const country = addr.country || "";
+            const cityLabel = city + (country ? ", " + country : "");
+            if (cityLabel.trim()) setReferencePosition(pos.lat, pos.lon, cityLabel.trim());
+          }
+        } catch { /* keep coordinate label */ }
+      } catch (err) {
+        geoStatus.hidden = false;
+        geoStatus.className = "geo-status error";
+        geoStatus.textContent = "Geolocalisation echouee: " + err.message;
+      } finally {
+        geoButton.disabled = false;
+      }
+    });
+
+    geoSearchButton.addEventListener("click", async function() {
+      const query = geoInput.value.trim();
+      if (!query) { geoInput.focus(); return; }
+      geoStatus.hidden = false;
+      geoStatus.className = "geo-status";
+      geoStatus.textContent = "Recherche de l'adresse...";
+      geoSearchButton.disabled = true;
+      try {
+        const result = await geocodeAddress(query);
+        setReferencePosition(result.lat, result.lon, result.label);
+      } catch (err) {
+        geoStatus.hidden = false;
+        geoStatus.className = "geo-status error";
+        geoStatus.textContent = err.message;
+      } finally {
+        geoSearchButton.disabled = false;
+      }
+    });
+
+    geoInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") geoSearchButton.click();
+    });
+
+    geoClearButton.addEventListener("click", clearReferencePosition);
 
     renderProduct(null);
     renderComparison([], "recent");

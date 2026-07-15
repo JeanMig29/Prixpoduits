@@ -205,6 +205,7 @@
       background: #0f0f0d;
       aspect-ratio: 4 / 3;
       border: 1px solid rgba(30, 29, 27, 0.14);
+      touch-action: manipulation;
     }
 
     .camera-view {
@@ -212,6 +213,30 @@
       height: 100%;
       object-fit: cover;
       display: block;
+    }
+
+    .camera-shell.tap-focus {
+      cursor: crosshair;
+    }
+
+    .focus-ring {
+      position: absolute;
+      width: 88px;
+      height: 88px;
+      margin-left: -44px;
+      margin-top: -44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 248, 242, 0.96);
+      box-shadow: 0 0 0 999px rgba(255, 255, 255, 0);
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(1.2);
+      transition: opacity 160ms ease, transform 220ms ease;
+    }
+
+    .focus-ring.visible {
+      opacity: 1;
+      transform: scale(1);
     }
 
     .scan-frame {
@@ -462,6 +487,7 @@
         </p>
         <div class="camera-shell">
           <video id="cameraView" class="camera-view" autoplay playsinline muted></video>
+          <div id="focusRing" class="focus-ring"></div>
           <div class="scan-frame"></div>
           <div class="scan-line"></div>
         </div>
@@ -514,11 +540,15 @@
     const scanPanel = document.getElementById("scanPanel");
     const scanHint = document.getElementById("scanHint");
     const cameraView = document.getElementById("cameraView");
+    const focusRing = document.getElementById("focusRing");
 
     let scanStream = null;
     let scanIntervalId = null;
     let scanBusy = false;
     let barcodeDetector = null;
+    let imageCapture = null;
+    let cameraCapabilities = {};
+    let focusPointSupported = false;
 
     function setStatus(message, tone) {
       statusNode.textContent = message;
@@ -562,6 +592,10 @@
       return String(value || "").replace(/\D+/g, "").trim();
     }
 
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
     function isSecureContextForCamera() {
       return window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1";
     }
@@ -572,10 +606,15 @@
 
     function resetScanUi() {
       scanPanel.classList.remove("active");
+      cameraView.parentElement.classList.remove("tap-focus");
       refocusButton.hidden = true;
       stopScanButton.hidden = true;
       scanButton.disabled = false;
       cameraView.srcObject = null;
+      focusRing.classList.remove("visible");
+      imageCapture = null;
+      cameraCapabilities = {};
+      focusPointSupported = false;
     }
 
     function getVideoTrack() {
@@ -587,42 +626,99 @@
       return tracks.length > 0 ? tracks[0] : null;
     }
 
-    async function applyFocusConstraints(track, useSingleShot) {
+    function showFocusRing(x, y) {
+      focusRing.style.left = x + "px";
+      focusRing.style.top = y + "px";
+      focusRing.classList.add("visible");
+      window.clearTimeout(showFocusRing.timeoutId);
+      showFocusRing.timeoutId = window.setTimeout(function() {
+        focusRing.classList.remove("visible");
+      }, 850);
+    }
+
+    async function readCameraCapabilities(track) {
+      cameraCapabilities = typeof track.getCapabilities === "function" ? track.getCapabilities() : {};
+      focusPointSupported = Boolean(cameraCapabilities.pointsOfInterest);
+
+      if (typeof ImageCapture === "function") {
+        try {
+          imageCapture = new ImageCapture(track);
+        } catch {
+          imageCapture = null;
+        }
+      }
+    }
+
+    async function applyTrackConstraint(track, advancedConstraint) {
       if (!track || typeof track.applyConstraints !== "function") {
         return false;
       }
 
-      const capabilities = typeof track.getCapabilities === "function" ? track.getCapabilities() : {};
-      const advanced = [];
-
-      if (Array.isArray(capabilities.focusMode)) {
-        if (useSingleShot && capabilities.focusMode.includes("single-shot")) {
-          advanced.push({ focusMode: "single-shot" });
-        }
-        if (capabilities.focusMode.includes("continuous")) {
-          advanced.push({ focusMode: "continuous" });
-        }
-        if (!useSingleShot && capabilities.focusMode.includes("single-shot")) {
-          advanced.push({ focusMode: "single-shot" });
-        }
-      }
-
-      if (Array.isArray(capabilities.exposureMode) && capabilities.exposureMode.includes("continuous")) {
-        advanced.push({ exposureMode: "continuous" });
-      }
-
-      const constraints = {
-        advanced: advanced,
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      };
-
       try {
-        await track.applyConstraints(constraints);
-        return advanced.length > 0;
+        await track.applyConstraints({ advanced: [advancedConstraint] });
+        return true;
       } catch {
         return false;
       }
+    }
+
+    async function applyFocusConstraints(track, options) {
+      const settings = options || {};
+      const advancedAttempts = [];
+      const capabilities = cameraCapabilities || {};
+
+      if (settings.point && focusPointSupported) {
+        advancedAttempts.push({ pointsOfInterest: [settings.point] });
+      }
+
+      if (Array.isArray(capabilities.focusMode)) {
+        if (settings.singleShot && capabilities.focusMode.includes("single-shot")) {
+          advancedAttempts.push({
+            focusMode: "single-shot",
+            pointsOfInterest: settings.point && focusPointSupported ? [settings.point] : undefined
+          });
+        }
+
+        if (capabilities.focusMode.includes("continuous")) {
+          advancedAttempts.push({
+            focusMode: "continuous",
+            pointsOfInterest: settings.point && focusPointSupported ? [settings.point] : undefined
+          });
+        }
+
+        if (!settings.singleShot && capabilities.focusMode.includes("single-shot")) {
+          advancedAttempts.push({ focusMode: "single-shot" });
+        }
+      }
+
+      if (capabilities.focusDistance && typeof capabilities.focusDistance.max === "number") {
+        const nearDistance = Math.max(capabilities.focusDistance.min || 0, Math.min(capabilities.focusDistance.max, 0.15));
+        advancedAttempts.push({ focusMode: "manual", focusDistance: nearDistance });
+      }
+
+      if (Array.isArray(capabilities.exposureMode) && capabilities.exposureMode.includes("continuous")) {
+        advancedAttempts.push({ exposureMode: "continuous" });
+      }
+
+      if (Array.isArray(capabilities.whiteBalanceMode) && capabilities.whiteBalanceMode.includes("continuous")) {
+        advancedAttempts.push({ whiteBalanceMode: "continuous" });
+      }
+
+      for (let index = 0; index < advancedAttempts.length; index += 1) {
+        const sanitizedConstraint = {};
+        Object.keys(advancedAttempts[index]).forEach(function(key) {
+          if (advancedAttempts[index][key] !== undefined) {
+            sanitizedConstraint[key] = advancedAttempts[index][key];
+          }
+        });
+
+        const applied = await applyTrackConstraint(track, sanitizedConstraint);
+        if (applied) {
+          return true;
+        }
+      }
+
+      return false;
     }
 
     async function configureTrackForScanning(track) {
@@ -630,14 +726,18 @@
         return false;
       }
 
-      const focused = await applyFocusConstraints(track, false);
+      await readCameraCapabilities(track);
+      const focused = await applyFocusConstraints(track, { singleShot: false });
+      cameraView.parentElement.classList.toggle("tap-focus", focusPointSupported);
       scanHint.textContent = focused
-        ? "Autofocus continu active si disponible. Si l'image reste floue, appuyez sur Relancer la mise au point puis reculez legerement le telephone."
-        : "La camera est active. Certains navigateurs n'exposent pas la mise au point web: si l'image est floue, utilisez Relancer la mise au point et eloignez un peu le telephone du code-barres.";
+        ? (focusPointSupported
+          ? "Autofocus continu actif. Touchez l'image pour choisir une zone de mise au point, ou utilisez Relancer la mise au point."
+          : "Autofocus continu actif si le navigateur l'autorise. Si l'image reste floue, utilisez Relancer la mise au point et reculez legerement le telephone.")
+        : "La camera est active. Ce navigateur ouvre bien l'appareil photo, mais n'expose pas completement les commandes de focus web. Essayez Relancer la mise au point et touchez l'image si le pointage est supporte.";
       return focused;
     }
 
-    async function forceRefocus() {
+    async function forceRefocus(point) {
       const track = getVideoTrack();
       if (!track) {
         return;
@@ -645,7 +745,10 @@
 
       setStatus("Relance de la mise au point...", "");
 
-      const focused = await applyFocusConstraints(track, true);
+      const focused = await applyFocusConstraints(track, {
+        singleShot: true,
+        point: point || null
+      });
 
       if (!focused) {
         try {
@@ -656,10 +759,27 @@
       }
 
       setTimeout(function() {
-        applyFocusConstraints(track, false);
+        applyFocusConstraints(track, {
+          singleShot: false,
+          point: point || null
+        });
       }, 250);
 
       setStatus("Mise au point relancee. Si besoin, reculez legerement le telephone puis revenez vers le code-barres.", focused ? "ok" : "");
+    }
+
+    async function focusAtPoint(clientX, clientY) {
+      const shell = cameraView.parentElement;
+      const rect = shell.getBoundingClientRect();
+      const x = clamp(clientX - rect.left, 0, rect.width);
+      const y = clamp(clientY - rect.top, 0, rect.height);
+      const point = {
+        x: Number((x / rect.width).toFixed(4)),
+        y: Number((y / rect.height).toFixed(4))
+      };
+
+      showFocusRing(x, y);
+      await forceRefocus(point);
     }
 
     async function stopScanner() {
@@ -954,8 +1074,21 @@
       }
     });
 
-    cameraView.addEventListener("click", function() {
-      forceRefocus();
+    cameraView.addEventListener("click", function(event) {
+      if (focusPointSupported) {
+        focusAtPoint(event.clientX, event.clientY);
+      } else {
+        forceRefocus();
+      }
+    });
+
+    cameraView.addEventListener("touchend", function(event) {
+      if (!focusPointSupported || !event.changedTouches || event.changedTouches.length === 0) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      focusAtPoint(touch.clientX, touch.clientY);
     });
 
     window.addEventListener("pagehide", function() {

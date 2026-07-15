@@ -442,6 +442,134 @@
       font-size: 1.1rem;
     }
 
+    .view-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 4px 0 16px;
+    }
+
+    .tab-button {
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .tab-button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(30, 29, 27, 0.22);
+    }
+
+    .tab-button.active {
+      background: var(--text);
+      color: #fff8f2;
+      border-color: var(--text);
+    }
+
+    .view-panel {
+      display: none;
+    }
+
+    .view-panel.active {
+      display: block;
+    }
+
+    .brand-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .store-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(30, 29, 27, 0.06);
+    }
+
+    .store-card__header {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .store-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      color: #fffaf4;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
+
+    .store-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.2;
+    }
+
+    .store-card p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.45;
+    }
+
+    .store-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(30, 29, 27, 0.08);
+      font-size: 0.88rem;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .store-card__best {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(30, 29, 27, 0.08);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .store-card__best strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    .store-card__best span {
+      display: block;
+      font-size: 1.02rem;
+    }
+
     .price-list {
       display: grid;
       gap: 12px;
@@ -601,11 +729,26 @@
             <p id="feedSubtitle" class="muted">Source: Open Prices public API</p>
           </div>
         </div>
-        <div id="comparisonSummary" class="summary-grid"></div>
-        <div id="priceList" class="price-list"></div>
-        <p class="footer-note">
-          Donnees: Open Prices / Open Food Facts. Pensez a conserver l'attribution de la source lors de la publication.
-        </p>
+        <div class="view-tabs" role="tablist" aria-label="Vues de comparaison">
+          <button id="recentTab" class="tab-button active" type="button" data-view="recent">Flux mondial</button>
+          <button id="brandTab" class="tab-button" type="button" data-view="brand">Comparer par enseigne</button>
+        </div>
+
+        <section id="recentView" class="view-panel active" aria-labelledby="recentTab">
+          <div id="comparisonSummary" class="summary-grid"></div>
+          <div id="priceList" class="price-list"></div>
+          <p class="footer-note">
+            Donnees: Open Prices / Open Food Facts. Pensez a conserver l'attribution de la source lors de la publication.
+          </p>
+        </section>
+
+        <section id="brandView" class="view-panel" aria-labelledby="brandTab">
+          <div id="brandSummary" class="summary-grid"></div>
+          <div id="brandList" class="brand-list"></div>
+          <p class="footer-note">
+            La comparaison par enseigne utilise la position de reference si elle est disponible, sinon elle classe les offres sur le prix seul.
+          </p>
+        </section>
       </article>
     </section>
   </main>
@@ -624,6 +767,12 @@
     const feedTitle = document.getElementById("feedTitle");
     const feedSubtitle = document.getElementById("feedSubtitle");
     const comparisonSummary = document.getElementById("comparisonSummary");
+    const brandSummary = document.getElementById("brandSummary");
+    const brandList = document.getElementById("brandList");
+    const recentTab = document.getElementById("recentTab");
+    const brandTab = document.getElementById("brandTab");
+    const recentView = document.getElementById("recentView");
+    const brandView = document.getElementById("brandView");
     const scanButton = document.getElementById("scanButton");
     const captureButton = document.getElementById("captureButton");
     const externalScannerButton = document.getElementById("externalScannerButton");
@@ -652,6 +801,10 @@
     let userLat = null;
     let userLon = null;
     let userLocationLabel = "";
+    let currentItems = [];
+    let currentMode = "recent";
+
+    const storePalette = ["#ba3f1d", "#165b33", "#2457a6", "#7a4d12", "#8c2a7a", "#2a728c", "#6f3f9f", "#a35d18"];
 
     function setStatus(message, tone) {
       statusNode.textContent = message;
@@ -730,6 +883,110 @@
       return formatNumber(Math.round(km * 10) / 10) + " km";
     }
 
+    function normalizeLabel(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
+    function hashString(value) {
+      let hash = 0;
+      const text = String(value || "");
+      for (let index = 0; index < text.length; index += 1) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(index);
+        hash |= 0;
+      }
+      return Math.abs(hash);
+    }
+
+    function getStoreBadge(storeLabel) {
+      const normalized = normalizeLabel(storeLabel);
+      const words = String(storeLabel || "").split(/\s+/).filter(Boolean);
+      const initials = words.slice(0, 2).map(function(word) {
+        return word.charAt(0).toUpperCase();
+      }).join("") || "?";
+      return {
+        initials: initials,
+        color: storePalette[hashString(normalized) % storePalette.length]
+      };
+    }
+
+    function extractStoreLabel(item) {
+      const location = item.location || {};
+      return safeText(location.osm_brand || location.osm_name || location.osm_display_name, "Magasin inconnu");
+    }
+
+    function getLocationCity(location) {
+      return safeText(location.osm_address_city || location.osm_address_town || location.osm_address_village || location.osm_address_county, "");
+    }
+
+    function groupItemsByStore(items) {
+      const grouped = new Map();
+
+      items.forEach(function(item) {
+        if (typeof item.price !== "number") {
+          return;
+        }
+
+        const storeLabel = extractStoreLabel(item);
+        if (!grouped.has(storeLabel)) {
+          grouped.set(storeLabel, []);
+        }
+        grouped.get(storeLabel).push(item);
+      });
+
+      return Array.from(grouped.entries()).map(function(entry) {
+        const storeLabel = entry[0];
+        const storeItems = entry[1];
+        const bestItem = storeItems.reduce(function(best, item) {
+          return item.price <= best.price ? item : best;
+        });
+        const prices = storeItems.map(function(item) {
+          return item.price;
+        });
+        const average = prices.reduce(function(sum, price) {
+          return sum + price;
+        }, 0) / prices.length;
+        const location = bestItem.location || {};
+        const distance = (userLat !== null && userLon !== null && typeof location.osm_lat === "number" && typeof location.osm_lon === "number")
+          ? haversineDistance(userLat, userLon, location.osm_lat, location.osm_lon)
+          : null;
+
+        return {
+          storeLabel: storeLabel,
+          badge: getStoreBadge(storeLabel),
+          count: storeItems.length,
+          bestItem: bestItem,
+          average: average,
+          distance: distance,
+          location: location,
+          city: getLocationCity(location)
+        };
+      }).sort(function(a, b) {
+        if (a.bestItem.price !== b.bestItem.price) {
+          return a.bestItem.price - b.bestItem.price;
+        }
+
+        if (a.distance === null && b.distance === null) {
+          return 0;
+        }
+
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    function setActiveTab(view) {
+      recentTab.classList.toggle("active", view === "recent");
+      brandTab.classList.toggle("active", view === "brand");
+      recentView.classList.toggle("active", view === "recent");
+      brandView.classList.toggle("active", view === "brand");
+    }
+
     function getUserGeoPosition() {
       return new Promise(function(resolve, reject) {
         if (!navigator.geolocation) {
@@ -774,6 +1031,7 @@
       geoStatus.className = "geo-status ok";
       geoStatus.textContent = "Position de reference: " + userLocationLabel;
       geoClearButton.hidden = false;
+      updateComparisonViews();
     }
 
     function clearReferencePosition() {
@@ -784,6 +1042,13 @@
       geoStatus.className = "geo-status";
       geoClearButton.hidden = true;
       geoInput.value = "";
+      updateComparisonViews();
+    }
+
+    function updateComparisonViews() {
+      renderComparison(currentItems, currentMode);
+      renderBrandComparison(currentItems, currentMode);
+      renderPrices(currentItems);
     }
 
     function resetScanUi() {
@@ -1347,6 +1612,91 @@
       comparisonSummary.innerHTML = cards.join("");
     }
 
+    function renderBrandComparison(items, mode) {
+      const validItems = (items || []).filter(function(item) {
+        return typeof item.price === "number";
+      });
+
+      if (validItems.length === 0) {
+        brandSummary.innerHTML = '<div class="summary-card"><strong>Comparaison par enseigne</strong><span>Aucune offre comparable pour le moment</span></div>';
+        brandList.innerHTML = '<div class="placeholder">Lancez une recherche produit ou chargez le flux recent pour comparer les enseignes.</div>';
+        return;
+      }
+
+      const grouped = groupItemsByStore(validItems);
+      const cheapest = grouped[0];
+      const withGeo = grouped.filter(function(group) {
+        return group.distance !== null;
+      });
+      const nearest = withGeo.slice().sort(function(a, b) {
+        return a.distance - b.distance;
+      })[0] || null;
+      const currency = cheapest.bestItem.currency || (cheapest.bestItem.proof && cheapest.bestItem.proof.currency) || "EUR";
+      const storeCount = grouped.length;
+      const cities = new Set(grouped.map(function(group) {
+        return group.city || "";
+      }).filter(Boolean));
+
+      const cards = [
+        '<div class="summary-card"><strong>Enseignes comparees</strong><span>' + formatNumber(storeCount) + '</span></div>',
+        '<div class="summary-card"><strong>Meilleur prix</strong><span>' + formatMoney(cheapest.bestItem.price, currency) + '</span></div>',
+        '<div class="summary-card"><strong>Zones couvertes</strong><span>' + formatNumber(cities.size) + '</span></div>'
+      ];
+
+      if (userLat !== null && userLon !== null && nearest) {
+        cards.push(
+          '<div class="summary-card"><strong>Enseigne la plus proche</strong><span>' + nearest.storeLabel + '</span></div>',
+          '<div class="summary-card"><strong>Distance</strong><span>' + formatDistance(nearest.distance) + '</span></div>',
+          '<div class="summary-card"><strong>Prix proche</strong><span>' + formatMoney(nearest.bestItem.price, nearest.bestItem.currency || currency) + '</span></div>'
+        );
+      } else {
+        cards.push(
+          '<div class="summary-card"><strong>Position</strong><span>Aucune reference geographique</span></div>',
+          '<div class="summary-card"><strong>Classement</strong><span>Trie par prix puis par distance si disponible</span></div>',
+          '<div class="summary-card"><strong>Mode</strong><span>' + (mode === "product" ? "Produit recherche" : "Flux recent") + '</span></div>'
+        );
+      }
+
+      brandSummary.innerHTML = cards.join("");
+      brandList.innerHTML = grouped.map(function(group) {
+        const location = group.location || {};
+        const city = group.city;
+        const currencyValue = group.bestItem.currency || (group.bestItem.proof && group.bestItem.proof.currency) || "EUR";
+        const distanceText = group.distance !== null ? '<span class="metric-chip">' + formatDistance(group.distance) + ' de vous</span>' : '';
+        const mapLink = (typeof location.osm_lat === "number" && typeof location.osm_lon === "number")
+          ? '<a class="metric-chip" href="https://www.openstreetmap.org/?mlat=' + location.osm_lat + '&mlon=' + location.osm_lon + '#map=16/' + location.osm_lat + '/' + location.osm_lon + '" target="_blank" rel="noopener">Carte</a>'
+          : '';
+
+        return [
+          '<article class="store-card">',
+          '<div class="store-card__header">',
+          '<div class="store-logo" style="background:' + group.badge.color + '">' + group.badge.initials + '</div>',
+          '<div>',
+          '<h3>' + group.storeLabel + '</h3>',
+          '<p>' + (city ? city + ' · ' : '') + group.count + ' prix releves' + (mode === "product" ? ' pour ce produit' : ' dans le flux recent') + '</p>',
+          '</div>',
+          '<div class="pill">' + formatMoney(group.bestItem.price, currencyValue) + '</div>',
+          '</div>',
+          '<div class="store-metrics">',
+          '<span class="metric-chip">Moyenne ' + formatMoney(group.average, currencyValue) + '</span>',
+          distanceText,
+          mapLink,
+          '</div>',
+          '<div class="store-card__best">',
+          '<div>',
+          '<strong>Meilleure offre</strong>',
+          '<span>' + safeText(group.bestItem.product_name || (group.bestItem.product || {}).product_name, 'Produit sans nom') + '</span>',
+          '</div>',
+          '<div style="text-align:right">',
+          '<strong>Date</strong>',
+          '<span>' + formatDate((group.bestItem.proof && group.bestItem.proof.date) || group.bestItem.created || group.bestItem.updated) + '</span>',
+          '</div>',
+          '</div>',
+          '</article>'
+        ].join('');
+      }).join('');
+    }
+
     function renderPrices(items) {
       if (!Array.isArray(items) || items.length === 0) {
         priceList.innerHTML = '<div class="placeholder">Aucun prix public trouve pour cette requete.</div>';
@@ -1408,11 +1758,16 @@
 
       try {
         const data = await fetchJson(API_BASE + "/prices?page_size=" + RECENT_PAGE_SIZE);
-        renderComparison(data.items || [], "recent");
-        renderPrices(data.items || []);
+        currentItems = data.items || [];
+        currentMode = "recent";
+        setActiveTab("recent");
+        updateComparisonViews();
         setStatus("Flux public charge.", "ok");
       } catch (error) {
+        currentItems = [];
+        currentMode = "recent";
         renderComparison([], "recent");
+        renderBrandComparison([], "recent");
         renderPrices([]);
         setStatus("Echec de communication avec Open Prices: " + error.message, "error");
       }
@@ -1436,16 +1791,28 @@
         renderProduct(product);
 
         const prices = await fetchJson(API_BASE + "/prices?product_code=" + encodeURIComponent(code) + "&page_size=" + PRODUCT_PAGE_SIZE);
-        renderComparison(prices.items || [], "product");
-        renderPrices(prices.items || []);
+        currentItems = prices.items || [];
+        currentMode = "product";
+        updateComparisonViews();
         setStatus("Produit et prix charges.", "ok");
       } catch (error) {
         renderProduct(null);
+        currentItems = [];
+        currentMode = "product";
         renderComparison([], "product");
+        renderBrandComparison([], "product");
         renderPrices([]);
         setStatus("Impossible de recuperer ce produit via Open Prices: " + error.message, "error");
       }
     }
+
+    recentTab.addEventListener("click", function() {
+      setActiveTab("recent");
+    });
+
+    brandTab.addEventListener("click", function() {
+      setActiveTab("brand");
+    });
 
     searchButton.addEventListener("click", lookupProduct);
     refreshButton.addEventListener("click", loadRecentPrices);
@@ -1540,6 +1907,7 @@
 
     renderProduct(null);
     renderComparison([], "recent");
+    renderBrandComparison([], "recent");
     if (!canUseNativeCameraCapture()) {
       captureButton.textContent = "Choisir ou photographier un code-barres";
     }

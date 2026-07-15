@@ -452,6 +452,7 @@
 
       <div class="scan-tools">
         <button id="scanButton" class="button" type="button">Scanner sur mobile</button>
+        <button id="refocusButton" class="button" type="button" hidden>Relancer la mise au point</button>
         <button id="stopScanButton" class="button" type="button" hidden>Arreter le scan</button>
       </div>
 
@@ -508,6 +509,7 @@
     const feedSubtitle = document.getElementById("feedSubtitle");
     const comparisonSummary = document.getElementById("comparisonSummary");
     const scanButton = document.getElementById("scanButton");
+    const refocusButton = document.getElementById("refocusButton");
     const stopScanButton = document.getElementById("stopScanButton");
     const scanPanel = document.getElementById("scanPanel");
     const scanHint = document.getElementById("scanHint");
@@ -570,9 +572,94 @@
 
     function resetScanUi() {
       scanPanel.classList.remove("active");
+      refocusButton.hidden = true;
       stopScanButton.hidden = true;
       scanButton.disabled = false;
       cameraView.srcObject = null;
+    }
+
+    function getVideoTrack() {
+      if (!scanStream) {
+        return null;
+      }
+
+      const tracks = scanStream.getVideoTracks();
+      return tracks.length > 0 ? tracks[0] : null;
+    }
+
+    async function applyFocusConstraints(track, useSingleShot) {
+      if (!track || typeof track.applyConstraints !== "function") {
+        return false;
+      }
+
+      const capabilities = typeof track.getCapabilities === "function" ? track.getCapabilities() : {};
+      const advanced = [];
+
+      if (Array.isArray(capabilities.focusMode)) {
+        if (useSingleShot && capabilities.focusMode.includes("single-shot")) {
+          advanced.push({ focusMode: "single-shot" });
+        }
+        if (capabilities.focusMode.includes("continuous")) {
+          advanced.push({ focusMode: "continuous" });
+        }
+        if (!useSingleShot && capabilities.focusMode.includes("single-shot")) {
+          advanced.push({ focusMode: "single-shot" });
+        }
+      }
+
+      if (Array.isArray(capabilities.exposureMode) && capabilities.exposureMode.includes("continuous")) {
+        advanced.push({ exposureMode: "continuous" });
+      }
+
+      const constraints = {
+        advanced: advanced,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+
+      try {
+        await track.applyConstraints(constraints);
+        return advanced.length > 0;
+      } catch {
+        return false;
+      }
+    }
+
+    async function configureTrackForScanning(track) {
+      if (!track) {
+        return false;
+      }
+
+      const focused = await applyFocusConstraints(track, false);
+      scanHint.textContent = focused
+        ? "Autofocus continu active si disponible. Si l'image reste floue, appuyez sur Relancer la mise au point puis reculez legerement le telephone."
+        : "La camera est active. Certains navigateurs n'exposent pas la mise au point web: si l'image est floue, utilisez Relancer la mise au point et eloignez un peu le telephone du code-barres.";
+      return focused;
+    }
+
+    async function forceRefocus() {
+      const track = getVideoTrack();
+      if (!track) {
+        return;
+      }
+
+      setStatus("Relance de la mise au point...", "");
+
+      const focused = await applyFocusConstraints(track, true);
+
+      if (!focused) {
+        try {
+          await track.applyConstraints({ advanced: [] });
+        } catch {
+          // no-op
+        }
+      }
+
+      setTimeout(function() {
+        applyFocusConstraints(track, false);
+      }, 250);
+
+      setStatus("Mise au point relancee. Si besoin, reculez legerement le telephone puis revenez vers le code-barres.", focused ? "ok" : "");
     }
 
     async function stopScanner() {
@@ -643,6 +730,12 @@
           video: {
             facingMode: {
               ideal: "environment"
+            },
+            width: {
+              ideal: 1920
+            },
+            height: {
+              ideal: 1080
             }
           }
         });
@@ -650,11 +743,13 @@
         cameraView.srcObject = scanStream;
         scanPanel.classList.add("active");
         scanButton.disabled = true;
+        refocusButton.hidden = false;
         stopScanButton.hidden = false;
         scanHint.textContent = "Cadrez le code-barres dans la zone. La recherche se lancera automatiquement des qu'il est detecte.";
         setStatus("Camera active. Recherche du code-barres...", "");
 
         await cameraView.play();
+        await configureTrackForScanning(getVideoTrack());
 
         scanIntervalId = window.setInterval(function() {
           detectFromCamera();
@@ -851,11 +946,16 @@
     searchButton.addEventListener("click", lookupProduct);
     refreshButton.addEventListener("click", loadRecentPrices);
     scanButton.addEventListener("click", startScanner);
+    refocusButton.addEventListener("click", forceRefocus);
     stopScanButton.addEventListener("click", stopScanner);
     barcodeInput.addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
         lookupProduct();
       }
+    });
+
+    cameraView.addEventListener("click", function() {
+      forceRefocus();
     });
 
     window.addEventListener("pagehide", function() {
